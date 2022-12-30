@@ -1,0 +1,13 @@
+[core]
+    remote = fh
+    autostage = true
+['remote "sciebo"']
+    url = webdavs://fh-aachen.sciebo.de/remote.php/dav/files/ab2071e%40fh-aachen.de/data-2022/dvc
+['remote "minio"']
+    url = s3://data-2022/
+    endpointurl = https://minio.andrebuesgen.de
+['remote "fh"']
+    url = ssh://149.201.187.65/projects/data-2022-profile-extraction
+    user = dvc
+    allow_agent = true
+    ask_password = false

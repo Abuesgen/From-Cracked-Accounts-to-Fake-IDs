@@ -1,0 +1,2429 @@
+schema: '2.0'
+stages:
+  prepare_text_corpus:
+    cmd: poetry run create_text_corpus --random-state 42 --dev-split 0.1 --test-split
+      0.1 data/raw/all.jsonl emb/train/train_split_1 emb/valid.txt emb/test.txt
+    deps:
+    - path: data/raw/all.jsonl
+      md5: b63bf90b085647085f7240fdb909b8c4
+      size: 31404974
+    - path: profile_extraction/util/main.py
+      md5: c94da354832915a21c86fe3094f82087
+      size: 8062
+    - path: profile_extraction/util/utils.py
+      md5: 62e6a40aca457b4b5fd2bb2338bb1f08
+      size: 3030
+    outs:
+    - path: emb/test.txt
+      md5: 3ba0c7b9d6445f25d5e211f470544707
+      size: 586900
+    - path: emb/train/train_split_1
+      md5: bf7820dbe8de95d02eb193f862a33ff9
+      size: 4669061
+    - path: emb/valid.txt
+      md5: 79dc0e507319237fb825c81d3caa266b
+      size: 590451
+  create_character_dictionary:
+    cmd: poetry run create_dictionary emb/ language_model/dictionary
+    deps:
+    - path: emb/test.txt
+      md5: 635072910579ed6097dbddd6676dc32f
+      size: 575455
+    - path: emb/train/train_split_1
+      md5: 70959f081da60d3118ab176cceb2eceb
+      size: 4592208
+    - path: emb/valid.txt
+      md5: ee3a97eb26c0cb99e6da091cf2c83bcb
+      size: 581011
+    - path: profile_extraction/ner_model/train_embeddings.py
+      md5: 2147a4dab0829d8b35e248318bb256d8
+      size: 2969
+    outs:
+    - path: language_model/dictionary
+      md5: 2da09dff19b5221672a66ffb871b3f88
+      size: 14295
+  train_forward_lm:
+    cmd: poetry run train_embeddings --forward emb/ language_model/forward
+    deps:
+    - path: emb/test.txt
+      md5: 3ba0c7b9d6445f25d5e211f470544707
+      size: 586900
+    - path: emb/train/train_split_1
+      md5: bf7820dbe8de95d02eb193f862a33ff9
+      size: 4669061
+    - path: emb/valid.txt
+      md5: 79dc0e507319237fb825c81d3caa266b
+      size: 590451
+    - path: profile_extraction/ner_model/train_embeddings.py
+      md5: 778222c8a077107e11a299b775577104
+      size: 3320
+    outs:
+    - path: language_model/forward/best-lm.pt
+      md5: 72bbf3f100ac653a146d6bd7d6c9b561
+      size: 72821727
+    - path: language_model/forward/loss.txt
+      md5: 2fd7911b4d04c4bbbae2604c645623c0
+      size: 22844
+    - path: language_model/forward/training.log
+      md5: 04b5a86307299683b77bf8d709a47803
+      size: 383204
+  prepare_data:
+    cmd: poetry run data_split --random-state 42 --dev-split 0.15 --test-split 0.15
+      data/interim/all_annotations_fixed.jsonl tmp/train.jsonl tmp/dev.jsonl tmp/test.jsonl
+    deps:
+    - path: data/interim/all_annotations_fixed.jsonl
+      md5: dfe32ed655c933640f2eedbd28f46357
+      size: 877003
+    - path: profile_extraction/util/main.py
+      md5: c94da354832915a21c86fe3094f82087
+      size: 8062
+    - path: profile_extraction/util/utils.py
+      md5: 62e6a40aca457b4b5fd2bb2338bb1f08
+      size: 3030
+    outs:
+    - path: tmp/dev.jsonl
+      md5: 0b80e0078129c0701c681911e9f4e3a6
+      size: 118902
+    - path: tmp/test.jsonl
+      md5: d73ce06addf4ef2fde33023620b64f81
+      size: 139481
+    - path: tmp/train.jsonl
+      md5: ae7412cfed321adf911de714fdcd001b
+      size: 600882
+  train_backward_lm:
+    cmd: poetry run train_embeddings --backward emb/ language_model/backward
+    deps:
+    - path: emb/test.txt
+      md5: 3ba0c7b9d6445f25d5e211f470544707
+      size: 586900
+    - path: emb/train/train_split_1
+      md5: bf7820dbe8de95d02eb193f862a33ff9
+      size: 4669061
+    - path: emb/valid.txt
+      md5: 79dc0e507319237fb825c81d3caa266b
+      size: 590451
+    - path: profile_extraction/ner_model/train_embeddings.py
+      md5: 778222c8a077107e11a299b775577104
+      size: 3320
+    outs:
+    - path: language_model/backward/best-lm.pt
+      md5: 60fa6cba60175b99b0514f5336802243
+      size: 72821727
+    - path: language_model/backward/loss.txt
+      md5: 4b64e503475f02ad6675ff2139967390
+      size: 22844
+    - path: language_model/backward/training.log
+      md5: c94f3ba44e8ed99fe35d173a283a1902
+      size: 387080
+  train_ner_model:
+    cmd: poetry run train_model tmp model
+    deps:
+    - path: language_model/backward/best-lm.pt
+      md5: 60fa6cba60175b99b0514f5336802243
+      size: 72821727
+    - path: language_model/forward/best-lm.pt
+      md5: 72bbf3f100ac653a146d6bd7d6c9b561
+      size: 72821727
+    - path: profile_extraction/ner_model/corpus.py
+      md5: 429c8f502e5f341601d857b3c38b9435
+      size: 11040
+    - path: profile_extraction/ner_model/train.py
+      md5: ae8ffc0b262970a3543cf48069fcb6c8
+      size: 2082
+    - path: tmp/dev.jsonl
+      md5: 0b80e0078129c0701c681911e9f4e3a6
+      size: 118902
+    - path: tmp/test.jsonl
+      md5: d73ce06addf4ef2fde33023620b64f81
+      size: 139481
+    - path: tmp/train.jsonl
+      md5: ae7412cfed321adf911de714fdcd001b
+      size: 600882
+    outs:
+    - path: model/best-model.pt
+      md5: 92d021bbb259e6eb318f346fa21ae8e3
+      size: 1479962168
+    - path: model/loss.tsv
+      md5: 55f0b96a382c75d3139e8efc6ed97b09
+      size: 5283
+    - path: model/training.log
+      md5: a7986282c2e893fb07abc5914f6e0a37
+      size: 96215
+  ner_model_metrics:
+    cmd: poetry run evaluate -m model/best-model.pt -d tmp/test.jsonl model/metrics.json
+    deps:
+    - path: model/best-model.pt
+      md5: 92d021bbb259e6eb318f346fa21ae8e3
+      size: 1479962168
+    - path: profile_extraction/ner_model/evaluate.py
+      md5: 2a933855d15dd60350b1482e7ce3ee59
+      size: 1060
+    - path: tmp/test.jsonl
+      md5: d73ce06addf4ef2fde33023620b64f81
+      size: 139481
+    outs:
+    - path: model/metrics.json
+      md5: 603eaad7f896c9aa7ad4b7491f6ade7d
+      size: 1220
+  train_transformer_model:
+    cmd: poetry run train_transformer tmp transformer_model
+    deps:
+    - path: profile_extraction/ner_model/corpus.py
+      md5: 429c8f502e5f341601d857b3c38b9435
+      size: 11040
+    - path: profile_extraction/ner_model/train_transformer.py
+      md5: 0744a0167144336ea8c5116469f9f2ff
+      size: 2070
+    - path: tmp/dev.jsonl
+      md5: 0b80e0078129c0701c681911e9f4e3a6
+      size: 118902
+    - path: tmp/test.jsonl
+      md5: d73ce06addf4ef2fde33023620b64f81
+      size: 139481
+    - path: tmp/train.jsonl
+      md5: ae7412cfed321adf911de714fdcd001b
+      size: 600882
+    outs:
+    - path: transformer_model/best-model.pt
+      md5: 1956d21ae21d41b3182220a3884228e3
+      size: 1343214253
+    - path: transformer_model/loss.tsv
+      md5: 89eaf5707d3d2cc217ca8b7d2278872b
+      size: 70574
+    - path: transformer_model/training.log
+      md5: 47ef3f278f0730199e38ca326374a444
+      size: 1219397
+  transformer_model_metrics:
+    cmd: poetry run evaluate -m transformer_model/best-model.pt -d tmp/test.jsonl
+      transformer_model/metrics.json
+    deps:
+    - path: profile_extraction/ner_model/evaluate.py
+      md5: 2a933855d15dd60350b1482e7ce3ee59
+      size: 1060
+    - path: tmp/test.jsonl
+      md5: d73ce06addf4ef2fde33023620b64f81
+      size: 139481
+    - path: transformer_model/best-model.pt
+      md5: 1956d21ae21d41b3182220a3884228e3
+      size: 1343214253
+    outs:
+    - path: transformer_model/metrics.json
+      md5: b50d07825b9e61fb39658b2901bd8a0e
+      size: 1194
+  create_profiles_schwarzmarkt_4:
+    cmd: create_profiles --model transformer_model/best-model.pt --relation-model
+      relation_model/best-model.pt --chat data/raw/schwarzmarkt_4.json --output profiles/schwarzmarkt_4.json
+    deps:
+    - path: data/raw/schwarzmarkt_4.json
+      md5: cf7517ae9b17a9c904f186efe7dfaae8
+      size: 11977564
+    - path: profile_extraction/profile_creation
+      md5: c05f973921ac31a5c1545211f56b3701.dir
+      size: 92450
+      nfiles: 36
+    - path: relation_model/best-model.pt
+      md5: 894608b09c8e337cfb92e60285ba52af
+      size: 1376752873
+    - path: transformer_model/best-model.pt
+      md5: 1956d21ae21d41b3182220a3884228e3
+      size: 1343214253
+    outs:
+    - path: profiles/schwarzmarkt_4.json
+      md5: a0029d0ae3ee0681c14fed6e9069cfab
+      size: 349896207
+  create_profiles_schwarzmarkt_d:
+    cmd: poetry run create_profiles --model transformer_model/best-model.pt --relation-model
+      relation_model/best-model.pt --chat data/raw/schwarzmarkt_d.json --output profiles/schwarzmarkt_d.json
+    deps:
+    - path: data/raw/schwarzmarkt_d.json
+      md5: b66b29aa507b60d587db4e5847a0d5f6
+      size: 10746228
+    - path: profile_extraction/profile_creation
+      md5: c05f973921ac31a5c1545211f56b3701.dir
+      size: 92450
+      nfiles: 36
+    - path: relation_model/best-model.pt
+      md5: 894608b09c8e337cfb92e60285ba52af
+      size: 1376752873
+    - path: transformer_model/best-model.pt
+      md5: 1956d21ae21d41b3182220a3884228e3
+      size: 1343214253
+    outs:
+    - path: profiles/schwarzmarkt_d.json
+      md5: 7c19c21b7107111fdbb4de2797bde4fc
+      size: 160408523
+  create_profiles_safe_port:
+    cmd: poetry run create_profiles --model transformer_model/best-model.pt --relation-model
+      relation_model/best-model.pt --chat data/raw/schwarzmarkt_safe_port.json --output
+      profiles/schwarzmarkt_safe_port.json
+    deps:
+    - path: data/raw/schwarzmarkt_safe_port.json
+      md5: 2a84be9971612c853d36cc0add4959a0
+      size: 1448829
+    - path: profile_extraction/profile_creation
+      md5: c05f973921ac31a5c1545211f56b3701.dir
+      size: 92450
+      nfiles: 36
+    - path: relation_model/best-model.pt
+      md5: 894608b09c8e337cfb92e60285ba52af
+      size: 1376752873
+    - path: transformer_model/best-model.pt
+      md5: 1956d21ae21d41b3182220a3884228e3
+      size: 1343214253
+    outs:
+    - path: profiles/schwarzmarkt_safe_port.json
+      md5: 9f6bf5e65389a86de971d68d7f794a40
+      size: 36859752
+  create_profiles_schwarzmarkt_legacy:
+    cmd: poetry run create_profiles --model transformer_model/best-model.pt --relation-model
+      relation_model/best-model.pt --chat data/raw/schwarzmarkt_legacy.json --output
+      profiles/schwarzmarkt_legacy.json
+    deps:
+    - path: data/raw/schwarzmarkt_legacy.json
+      md5: 04b1ce08c4bdb9f80328a175be09be85
+      size: 10845249
+    - path: profile_extraction/profile_creation
+      md5: c05f973921ac31a5c1545211f56b3701.dir
+      size: 92450
+      nfiles: 36
+    - path: relation_model/best-model.pt
+      md5: 894608b09c8e337cfb92e60285ba52af
+      size: 1376752873
+    - path: transformer_model/best-model.pt
+      md5: 1956d21ae21d41b3182220a3884228e3
+      size: 1343214253
+    outs:
+    - path: profiles/schwarzmarkt_legacy.json
+      md5: 175d7ebbdfd69b246a1963bd36967f37
+      size: 154931360
+  visualize_profiles_schwarzmarkt_d:
+    cmd: poetry run visualize_profiles --input-json profiles/schwarzmarkt_d.json --output-dir
+      visualized_profiles/schwarzmarkt_d/
+    deps:
+    - path: profile_extraction/profile_visualization/
+      md5: 8e8341f1fbcd681c33c0253078190f55.dir
+      size: 46959
+      nfiles: 9
+    - path: profiles/schwarzmarkt_d.json
+      md5: 7c19c21b7107111fdbb4de2797bde4fc
+      size: 160408523
+    outs:
+    - path: visualized_profiles/schwarzmarkt_d/
+      md5: 13f31063edc73ef2d34296361bd4cb02.dir
+      size: 52610189
+      nfiles: 1200
+  visualize_profiles_schwarzmarkt_safe_port:
+    cmd: poetry run visualize_profiles --input-json profiles/schwarzmarkt_safe_port.json
+      --output-dir visualized_profiles/schwarzmarkt_safe_port/
+    deps:
+    - path: profile_extraction/profile_visualization/
+      md5: 8e8341f1fbcd681c33c0253078190f55.dir
+      size: 46959
+      nfiles: 9
+    - path: profiles/schwarzmarkt_safe_port.json
+      md5: 9f6bf5e65389a86de971d68d7f794a40
+      size: 36859752
+    outs:
+    - path: visualized_profiles/schwarzmarkt_safe_port/
+      md5: 4bc67a861787c71771cdc59cc7d7a9eb.dir
+      size: 16592097
+      nfiles: 444
+  visualize_profiles_schwarzmarkt_4:
+    cmd: poetry run visualize_profiles --input-json profiles/schwarzmarkt_4.json --output-dir
+      visualized_profiles/schwarzmarkt_4/
+    deps:
+    - path: profile_extraction/profile_visualization/
+      md5: 8e8341f1fbcd681c33c0253078190f55.dir
+      size: 46959
+      nfiles: 9
+    - path: profiles/schwarzmarkt_4.json
+      md5: a0029d0ae3ee0681c14fed6e9069cfab
+      size: 349896207
+    outs:
+    - path: visualized_profiles/schwarzmarkt_4/
+      md5: 75fba9277b27bc44e932faa1fffa0b2f.dir
+      size: 116162329
+      nfiles: 1187
+  visualize_profiles_schwarzmarkt_legacy:
+    cmd: poetry run visualize_profiles --input-json profiles/schwarzmarkt_legacy.json
+      --output-dir visualized_profiles/schwarzmarkt_legacy/
+    deps:
+    - path: profile_extraction/profile_visualization/
+      md5: 8e8341f1fbcd681c33c0253078190f55.dir
+      size: 46959
+      nfiles: 9
+    - path: profiles/schwarzmarkt_legacy.json
+      md5: 175d7ebbdfd69b246a1963bd36967f37
+      size: 154931360
+    outs:
+    - path: visualized_profiles/schwarzmarkt_legacy/
+      md5: d7f1b58f3fee9b39104aa41065364177.dir
+      size: 52001684
+      nfiles: 3612
+  cluster_tf_idf_schwarzmarkt_4:
+    cmd: poetry run cluster_profiles --model-path model/best-model.pt --output-dir
+      cluster/model/schwarzmarkt_4/tf_idf --profile-path profiles/schwarzmarkt_4.json
+      --threshold 0.3 --visualizations-path visualized_profiles/schwarzmarkt_4
+    deps:
+    - path: profile_extraction/profile_clustering
+      md5: d0862fc51b2f72ffabcf34ef04ddb4bd.dir
+      size: 34230
+      nfiles: 8
+    - path: visualized_profiles/schwarzmarkt_4/
+      md5: 2bc45f378caf36bf21b576ea76c7d08d.dir
+      size: 8799125572
+      nfiles: 1187
+    outs:
+    - path: cluster/model/schwarzmarkt_4/tf_idf
+      md5: c1b307c376b294d813f47089ef08f74b.dir
+      size: 8802808711
+      nfiles: 1188
+  cluster_tf_idf_schwarzmarkt_legacy:
+    cmd: poetry run cluster_profiles --model-path model/best-model.pt --output-dir
+      cluster/model/schwarzmarkt_legacy/tf_idf --profile-path profiles/schwarzmarkt_legacy.json
+      --threshold 0.3 --visualizations-path visualized_profiles/schwarzmarkt_legacy
+    deps:
+    - path: profile_extraction/profile_clustering
+      md5: d0862fc51b2f72ffabcf34ef04ddb4bd.dir
+      size: 34230
+      nfiles: 8
+    - path: visualized_profiles/schwarzmarkt_legacy/
+      md5: 19644d3e46d31f3ed0c3358c64b2d910.dir
+      size: 26563242477
+      nfiles: 3612
+    outs:
+    - path: cluster/model/schwarzmarkt_legacy/tf_idf
+      md5: a84b8779714a0c4b66a5e61e0bcb91e9.dir
+      size: 26566947179
+      nfiles: 3613
+  cluster_tf_idf_schwarzmarkt_d:
+    cmd: poetry run cluster_profiles --model-path model/best-model.pt --output-dir
+      cluster/model/schwarzmarkt_d/tf_idf --profile-path profiles/schwarzmarkt_d.json
+      --threshold 0.3 --visualizations-path visualized_profiles/schwarzmarkt_d
+    deps:
+    - path: profile_extraction/profile_clustering
+      md5: d0862fc51b2f72ffabcf34ef04ddb4bd.dir
+      size: 34230
+      nfiles: 8
+    - path: visualized_profiles/schwarzmarkt_d/
+      md5: 768d31752554f5de8d50d1ecacd4c366.dir
+      size: 8852204758
+      nfiles: 1200
+    outs:
+    - path: cluster/model/schwarzmarkt_d/tf_idf
+      md5: 51ae3e52d454853c8a8a5a7a12b098e8.dir
+      size: 8855903194
+      nfiles: 1201
+  cluster_tf_idf_schwarzmarkt_safe_port:
+    cmd: poetry run cluster_profiles --model-path model/best-model.pt --output-dir
+      cluster/model/schwarzmarkt_safe_port/tf_idf --profile-path profiles/schwarzmarkt_safe_port.json
+      --threshold 0.3 --visualizations-path visualized_profiles/schwarzmarkt_safe_port
+    deps:
+    - path: profile_extraction/profile_clustering
+      md5: d0862fc51b2f72ffabcf34ef04ddb4bd.dir
+      size: 34230
+      nfiles: 8
+    - path: visualized_profiles/schwarzmarkt_safe_port/
+      md5: 1f377c149dc3b7fa549046f17fbb3fac.dir
+      size: 3273282351
+      nfiles: 444
+    outs:
+    - path: cluster/model/schwarzmarkt_safe_port/tf_idf
+      md5: b3b8810328263c78767b30139f07d597.dir
+      size: 3276958291
+      nfiles: 445
+  cluster_no_tf_idf_schwarzmarkt_legacy:
+    cmd: poetry run cluster_profiles --model-path model/best-model.pt --output-dir
+      cluster/model/schwarzmarkt_legacy/no_tf_idf --profile-path profiles/schwarzmarkt_legacy.json
+      --threshold 0.3 --visualizations-path visualized_profiles/schwarzmarkt_legacy
+      --no-tf-idf
+    deps:
+    - path: profile_extraction/profile_clustering
+      md5: d0862fc51b2f72ffabcf34ef04ddb4bd.dir
+      size: 34230
+      nfiles: 8
+    - path: visualized_profiles/schwarzmarkt_legacy/
+      md5: 19644d3e46d31f3ed0c3358c64b2d910.dir
+      size: 26563242477
+      nfiles: 3612
+    outs:
+    - path: cluster/model/schwarzmarkt_legacy/no_tf_idf
+      md5: 4142e272de010d4c1b38b2f924d16df9.dir
+      size: 26566948215
+      nfiles: 3613
+  cluster_no_tf_idf_schwarzmarkt_4:
+    cmd: poetry run cluster_profiles --model-path model/best-model.pt --output-dir
+      cluster/model/schwarzmarkt_4/no_tf_idf --profile-path profiles/schwarzmarkt_4.json
+      --threshold 0.3 --visualizations-path visualized_profiles/schwarzmarkt_4 --no-tf-idf
+    deps:
+    - path: profile_extraction/profile_clustering
+      md5: d0862fc51b2f72ffabcf34ef04ddb4bd.dir
+      size: 34230
+      nfiles: 8
+    - path: visualized_profiles/schwarzmarkt_4/
+      md5: 2bc45f378caf36bf21b576ea76c7d08d.dir
+      size: 8799125572
+      nfiles: 1187
+    outs:
+    - path: cluster/model/schwarzmarkt_4/no_tf_idf
+      md5: fa14ba9d9d7d0ea86420166668c263b1.dir
+      size: 8802808929
+      nfiles: 1188
+  cluster_no_tf_idf_schwarzmarkt_safe_port:
+    cmd: poetry run cluster_profiles --model-path model/best-model.pt --output-dir
+      cluster/model/schwarzmarkt_safe_port/no_tf_idf --profile-path profiles/schwarzmarkt_safe_port.json
+      --threshold 0.3 --visualizations-path visualized_profiles/schwarzmarkt_safe_port
+      --no-tf-idf
+    deps:
+    - path: profile_extraction/profile_clustering
+      md5: d0862fc51b2f72ffabcf34ef04ddb4bd.dir
+      size: 34230
+      nfiles: 8
+    - path: visualized_profiles/schwarzmarkt_safe_port/
+      md5: 1f377c149dc3b7fa549046f17fbb3fac.dir
+      size: 3273282351
+      nfiles: 444
+    outs:
+    - path: cluster/model/schwarzmarkt_safe_port/no_tf_idf
+      md5: 7b60a5e2460d07d5c3230530865a2fa9.dir
+      size: 3276959053
+      nfiles: 445
+  cluster_no_tf_idf_schwarzmarkt_d:
+    cmd: poetry run cluster_profiles --model-path model/best-model.pt --output-dir
+      cluster/model/schwarzmarkt_d/no_tf_idf --profile-path profiles/schwarzmarkt_d.json
+      --threshold 0.3 --visualizations-path visualized_profiles/schwarzmarkt_d --no-tf-idf
+    deps:
+    - path: profile_extraction/profile_clustering
+      md5: d0862fc51b2f72ffabcf34ef04ddb4bd.dir
+      size: 34230
+      nfiles: 8
+    - path: visualized_profiles/schwarzmarkt_d/
+      md5: 768d31752554f5de8d50d1ecacd4c366.dir
+      size: 8852204758
+      nfiles: 1200
+    outs:
+    - path: cluster/model/schwarzmarkt_d/no_tf_idf
+      md5: 17dbc2d3de736ac820b4e46b62bc6360.dir
+      size: 8855899976
+      nfiles: 1201
+  cluster_transformer_tf_idf_schwarzmarkt_d:
+    cmd: poetry run cluster_profiles --model-path transformer_model/best-model.pt
+      --output-dir cluster/transformer_model/schwarzmarkt_d/tf_idf --profile-path
+      profiles/schwarzmarkt_d.json --threshold 0.3 --visualizations-path visualized_profiles/schwarzmarkt_d
+    deps:
+    - path: profile_extraction/profile_clustering
+      md5: d0862fc51b2f72ffabcf34ef04ddb4bd.dir
+      size: 34230
+      nfiles: 8
+    - path: visualized_profiles/schwarzmarkt_d/
+      md5: 768d31752554f5de8d50d1ecacd4c366.dir
+      size: 8852204758
+      nfiles: 1200
+    outs:
+    - path: cluster/transformer_model/schwarzmarkt_d/tf_idf
+      md5: 3ca1d7908c9bff75b5ba25eec5840c03.dir
+      size: 8855909251
+      nfiles: 1201
+  cluster_transformer_tf_idf_schwarzmarkt_safe_port:
+    cmd: poetry run cluster_profiles --model-path transformer_model/best-model.pt
+      --output-dir cluster/transformer_model/schwarzmarkt_safe_port/tf_idf --profile-path
+      profiles/schwarzmarkt_safe_port.json --threshold 0.3 --visualizations-path visualized_profiles/schwarzmarkt_safe_port
+    deps:
+    - path: profile_extraction/profile_clustering
+      md5: d0862fc51b2f72ffabcf34ef04ddb4bd.dir
+      size: 34230
+      nfiles: 8
+    - path: visualized_profiles/schwarzmarkt_safe_port/
+      md5: 1f377c149dc3b7fa549046f17fbb3fac.dir
+      size: 3273282351
+      nfiles: 444
+    outs:
+    - path: cluster/transformer_model/schwarzmarkt_safe_port/tf_idf
+      md5: 72d60393fcb55f6ff1e52328d670ac2e.dir
+      size: 3276967402
+      nfiles: 445
+  cluster_transformer_tf_idf_schwarzmarkt_legacy:
+    cmd: poetry run cluster_profiles --model-path transformer_model/best-model.pt
+      --output-dir cluster/transformer_model/schwarzmarkt_legacy/tf_idf --profile-path
+      profiles/schwarzmarkt_legacy.json --threshold 0.3 --visualizations-path visualized_profiles/schwarzmarkt_legacy
+    deps:
+    - path: profile_extraction/profile_clustering
+      md5: d0862fc51b2f72ffabcf34ef04ddb4bd.dir
+      size: 34230
+      nfiles: 8
+    - path: visualized_profiles/schwarzmarkt_legacy/
+      md5: 19644d3e46d31f3ed0c3358c64b2d910.dir
+      size: 26563242477
+      nfiles: 3612
+    outs:
+    - path: cluster/transformer_model/schwarzmarkt_legacy/tf_idf
+      md5: f5998c36fbef0fd5fb523bc07df21f02.dir
+      size: 26566960284
+      nfiles: 3613
+  cluster_transformer_tf_idf_schwarzmarkt_4:
+    cmd: poetry run cluster_profiles --model-path transformer_model/best-model.pt
+      --output-dir cluster/transformer_model/schwarzmarkt_4/tf_idf --profile-path
+      profiles/schwarzmarkt_4.json --threshold 0.3 --visualizations-path visualized_profiles/schwarzmarkt_4
+    deps:
+    - path: profile_extraction/profile_clustering
+      md5: d0862fc51b2f72ffabcf34ef04ddb4bd.dir
+      size: 34230
+      nfiles: 8
+    - path: visualized_profiles/schwarzmarkt_4/
+      md5: 2bc45f378caf36bf21b576ea76c7d08d.dir
+      size: 8799125572
+      nfiles: 1187
+    outs:
+    - path: cluster/transformer_model/schwarzmarkt_4/tf_idf
+      md5: 5e51de18bee70fb11636bb3053c19a79.dir
+      size: 8802817166
+      nfiles: 1188
+  cluster_transformer_no_tf_idf_schwarzmarkt_4:
+    cmd: poetry run cluster_profiles --model-path transformer_model/best-model.pt
+      --output-dir cluster/transformer_model/schwarzmarkt_4/no_tf_idf --profile-path
+      profiles/schwarzmarkt_4.json --threshold 0.3 --visualizations-path visualized_profiles/schwarzmarkt_4
+      --no-tf-idf
+    deps:
+    - path: profile_extraction/profile_clustering
+      md5: d0862fc51b2f72ffabcf34ef04ddb4bd.dir
+      size: 34230
+      nfiles: 8
+    - path: visualized_profiles/schwarzmarkt_4/
+      md5: 2bc45f378caf36bf21b576ea76c7d08d.dir
+      size: 8799125572
+      nfiles: 1187
+    outs:
+    - path: cluster/transformer_model/schwarzmarkt_4/no_tf_idf
+      md5: 6703166a9692b9587d8f011b6eead033.dir
+      size: 8802817156
+      nfiles: 1188
+  cluster_transformer_no_no_tf_idf_schwarzmarkt_legacy:
+    cmd: poetry run cluster_profiles --model-path transformer_model/best-model.pt
+      --output-dir cluster/transformer_model/schwarzmarkt_legacy/no_tf_idf --profile-path
+      profiles/schwarzmarkt_legacy.json --threshold 0.3 --visualizations-path visualized_profiles/schwarzmarkt_legacy
+      --no-tf-idf
+    deps:
+    - path: profile_extraction/profile_clustering
+      md5: d0862fc51b2f72ffabcf34ef04ddb4bd.dir
+      size: 34230
+      nfiles: 8
+    - path: visualized_profiles/schwarzmarkt_legacy/
+      md5: 19644d3e46d31f3ed0c3358c64b2d910.dir
+      size: 26563242477
+      nfiles: 3612
+    outs:
+    - path: cluster/transformer_model/schwarzmarkt_legacy/no_tf_idf
+      md5: b0c5aa35284fb1efcdc644a88b283e81.dir
+      size: 26566960552
+      nfiles: 3613
+  cluster_transformer_no_no_tf_idf_schwarzmarkt_safe_port:
+    cmd: poetry run cluster_profiles --model-path transformer_model/best-model.pt
+      --output-dir cluster/transformer_model/schwarzmarkt_safe_port/no_tf_idf --profile-path
+      profiles/schwarzmarkt_safe_port.json --threshold 0.3 --visualizations-path visualized_profiles/schwarzmarkt_safe_port
+      --no-tf-idf
+    deps:
+    - path: profile_extraction/profile_clustering
+      md5: d0862fc51b2f72ffabcf34ef04ddb4bd.dir
+      size: 34230
+      nfiles: 8
+    - path: visualized_profiles/schwarzmarkt_safe_port/
+      md5: 1f377c149dc3b7fa549046f17fbb3fac.dir
+      size: 3273282351
+      nfiles: 444
+    outs:
+    - path: cluster/transformer_model/schwarzmarkt_safe_port/no_tf_idf
+      md5: 93b55cef4e1a5d906e142f735dd388e7.dir
+      size: 3276967592
+      nfiles: 445
+  cluster_transformer_no_no_tf_idf_schwarzmarkt_d:
+    cmd: poetry run cluster_profiles --model-path transformer_model/best-model.pt
+      --output-dir cluster/transformer_model/schwarzmarkt_d/no_tf_idf --profile-path
+      profiles/schwarzmarkt_d.json --threshold 0.3 --visualizations-path visualized_profiles/schwarzmarkt_d
+      --no-tf-idf
+    deps:
+    - path: profile_extraction/profile_clustering
+      md5: af2751b1fdab0b8b86de2c73fa42781d.dir
+      size: 34238
+      nfiles: 8
+    - path: visualized_profiles/schwarzmarkt_d/
+      md5: 768d31752554f5de8d50d1ecacd4c366.dir
+      size: 8852204758
+      nfiles: 1200
+    outs:
+    - path: cluster/transformer_model/schwarzmarkt_d/no_tf_idf
+      md5: 709a703e7772c48bfbbec97edb3a6721.dir
+      size: 8855909300
+      nfiles: 1201
+  cluster_transformer_no_tf_idf_schwarzmarkt_d:
+    cmd: poetry run cluster_profiles --model-path transformer_model/best-model.pt
+      --output-dir cluster/transformer_model/schwarzmarkt_d/no_tf_idf --profile-path
+      profiles/schwarzmarkt_d.json --threshold 0.3 --visualizations-path visualized_profiles/schwarzmarkt_d
+      --no-tf-idf
+    deps:
+    - path: profile_extraction/profile_clustering
+      md5: d0862fc51b2f72ffabcf34ef04ddb4bd.dir
+      size: 34230
+      nfiles: 8
+    - path: visualized_profiles/schwarzmarkt_d/
+      md5: 768d31752554f5de8d50d1ecacd4c366.dir
+      size: 8852204758
+      nfiles: 1200
+    outs:
+    - path: cluster/transformer_model/schwarzmarkt_d/no_tf_idf
+      md5: 452f3daf33723ea0764adfe14ffa423e.dir
+      size: 8855909351
+      nfiles: 1201
+  cluster_no_tf_idf@1:
+    cmd: poetry run cluster_profiles --model-path model/best-model.pt --output-dir
+      cluster/model/schwarzmarkt_4/no-tf-idf --profile-path profiles/schwarzmarkt_4.json
+      --threshold 0.3 --visualizations-path visualized_profiles/schwarzmarkt_4 --no-tf-idf
+    deps:
+    - path: model
+      md5: a0a5a5fdcbb0bec7123a1382a830a8f6.dir
+      size: 1480078604
+      nfiles: 4
+    - path: profile_extraction/profile_clustering
+      md5: 50c3a36be695d59ad9b4d85d0d75f42e.dir
+      size: 36708
+      nfiles: 8
+    - path: profiles/schwarzmarkt_4.json
+      md5: 172948afeb1c1a22173605e739e9f408
+      size: 92099387
+    - path: visualized_profiles/schwarzmarkt_4/
+      md5: 2bc45f378caf36bf21b576ea76c7d08d.dir
+      size: 8799125572
+      nfiles: 1187
+    outs:
+    - path: cluster/model/schwarzmarkt_4/no-tf-idf
+      md5: 4d7f54fc7e7fb2b76a3fdc4c4f063ca9.dir
+      size: 3815688029
+      nfiles: 509
+  cluster_no_tf_idf@10:
+    cmd: poetry run cluster_profiles --model-path transformer_model/best-model.pt
+      --output-dir cluster/transformer_model/schwarzmarkt_4/tf-idf --profile-path
+      profiles/schwarzmarkt_4.json --threshold 0.3 --visualizations-path visualized_profiles/schwarzmarkt_4
+      --tf-idf
+    deps:
+    - path: profile_extraction/profile_clustering
+      md5: fa25765a2f093b43ed8a65658eb7eec6.dir
+      size: 34505
+      nfiles: 8
+    - path: profiles/schwarzmarkt_4.json
+      md5: 172948afeb1c1a22173605e739e9f408
+      size: 92099387
+    - path: transformer_model
+      md5: 9d3dc7571e1723c50813460b484e4ddf.dir
+      size: 1784572744
+      nfiles: 9
+    - path: visualized_profiles/schwarzmarkt_4/
+      md5: 2bc45f378caf36bf21b576ea76c7d08d.dir
+      size: 8799125572
+      nfiles: 1187
+    outs:
+    - path: cluster/transformer_model/schwarzmarkt_4/tf-idf
+      md5: c74c39cab70d44f1b311d86e48ffc031.dir
+      size: 3815696032
+      nfiles: 509
+  cluster_no_tf_idf@14:
+    cmd: poetry run cluster_profiles --model-path model/best-model.pt --output-dir
+      cluster/model/schwarzmarkt_4/tf-idf --profile-path profiles/schwarzmarkt_4.json
+      --threshold 0.3 --visualizations-path visualized_profiles/schwarzmarkt_4 --tf-idf
+    deps:
+    - path: model
+      md5: a0a5a5fdcbb0bec7123a1382a830a8f6.dir
+      size: 1480078604
+      nfiles: 4
+    - path: profile_extraction/profile_clustering
+      md5: fa25765a2f093b43ed8a65658eb7eec6.dir
+      size: 34505
+      nfiles: 8
+    - path: profiles/schwarzmarkt_4.json
+      md5: 172948afeb1c1a22173605e739e9f408
+      size: 92099387
+    - path: visualized_profiles/schwarzmarkt_4/
+      md5: 2bc45f378caf36bf21b576ea76c7d08d.dir
+      size: 8799125572
+      nfiles: 1187
+    outs:
+    - path: cluster/model/schwarzmarkt_4/tf-idf
+      md5: 7f52a918d3782b8f4b7cdd4e5b5f2b93.dir
+      size: 3815687817
+      nfiles: 509
+  cluster_no_tf_idf@15:
+    cmd: poetry run cluster_profiles --model-path model/best-model.pt --output-dir
+      cluster/model/schwarzmarkt_d/tf-idf --profile-path profiles/schwarzmarkt_d.json
+      --threshold 0.3 --visualizations-path visualized_profiles/schwarzmarkt_d --tf-idf
+    deps:
+    - path: model
+      md5: a0a5a5fdcbb0bec7123a1382a830a8f6.dir
+      size: 1480078604
+      nfiles: 4
+    - path: profile_extraction/profile_clustering
+      md5: fa25765a2f093b43ed8a65658eb7eec6.dir
+      size: 34505
+      nfiles: 8
+    - path: profiles/schwarzmarkt_d.json
+      md5: 433003a8336a5e5e29dddc7ad04cdd0e
+      size: 42326904
+    - path: visualized_profiles/schwarzmarkt_d/
+      md5: 768d31752554f5de8d50d1ecacd4c366.dir
+      size: 8852204758
+      nfiles: 1200
+    outs:
+    - path: cluster/model/schwarzmarkt_d/tf-idf
+      md5: 66c98d23d0a47d4e2420d9f7d3f20887.dir
+      size: 6263075417
+      nfiles: 848
+  cluster_no_tf_idf@12:
+    cmd: poetry run cluster_profiles --model-path model/best-model.pt --output-dir
+      cluster/model/schwarzmarkt_safe_port/tf-idf --profile-path profiles/schwarzmarkt_safe_port.json
+      --threshold 0.3 --visualizations-path visualized_profiles/schwarzmarkt_safe_port
+      --tf-idf
+    deps:
+    - path: model
+      md5: a0a5a5fdcbb0bec7123a1382a830a8f6.dir
+      size: 1480078604
+      nfiles: 4
+    - path: profile_extraction/profile_clustering
+      md5: fa25765a2f093b43ed8a65658eb7eec6.dir
+      size: 34505
+      nfiles: 8
+    - path: profiles/schwarzmarkt_safe_port.json
+      md5: a9468cac37dba4691fb92a283359eced
+      size: 11087369
+    - path: visualized_profiles/schwarzmarkt_safe_port/
+      md5: 1f377c149dc3b7fa549046f17fbb3fac.dir
+      size: 3273282351
+      nfiles: 444
+    outs:
+    - path: cluster/model/schwarzmarkt_safe_port/tf-idf
+      md5: 6d6f3fa4dc70a2930c9736df9f13c0c1.dir
+      size: 2469001695
+      nfiles: 335
+  cluster_no_tf_idf@2:
+    cmd: poetry run cluster_profiles --model-path transformer_model/best-model.pt
+      --output-dir cluster/transformer_model/schwarzmarkt_4/tf-idf --profile-path
+      profiles/schwarzmarkt_4.json --threshold 0.3 --visualizations-path visualized_profiles/schwarzmarkt_4
+      --tf-idf
+    deps:
+    - path: profile_extraction/profile_clustering
+      md5: 50c3a36be695d59ad9b4d85d0d75f42e.dir
+      size: 36708
+      nfiles: 8
+    - path: profiles/schwarzmarkt_4.json
+      md5: 172948afeb1c1a22173605e739e9f408
+      size: 92099387
+    - path: transformer_model
+      md5: 9d3dc7571e1723c50813460b484e4ddf.dir
+      size: 1784572744
+      nfiles: 9
+    - path: visualized_profiles/schwarzmarkt_4/
+      md5: 2bc45f378caf36bf21b576ea76c7d08d.dir
+      size: 8799125572
+      nfiles: 1187
+    outs:
+    - path: cluster/transformer_model/schwarzmarkt_4/tf-idf
+      md5: fca70cecf664948cfc6c2ced9c047495.dir
+      size: 3815696980
+      nfiles: 509
+  cluster_no_tf_idf@4:
+    cmd: poetry run cluster_profiles --model-path model/best-model.pt --output-dir
+      cluster/model/schwarzmarkt_safe_port/no-tf-idf --profile-path profiles/schwarzmarkt_safe_port.json
+      --threshold 0.3 --visualizations-path visualized_profiles/schwarzmarkt_safe_port
+      --no-tf-idf
+    deps:
+    - path: model
+      md5: a0a5a5fdcbb0bec7123a1382a830a8f6.dir
+      size: 1480078604
+      nfiles: 4
+    - path: profile_extraction/profile_clustering
+      md5: fa25765a2f093b43ed8a65658eb7eec6.dir
+      size: 34505
+      nfiles: 8
+    - path: profiles/schwarzmarkt_safe_port.json
+      md5: a9468cac37dba4691fb92a283359eced
+      size: 11087369
+    - path: visualized_profiles/schwarzmarkt_safe_port/
+      md5: 1f377c149dc3b7fa549046f17fbb3fac.dir
+      size: 3273282351
+      nfiles: 444
+    outs:
+    - path: cluster/model/schwarzmarkt_safe_port/no-tf-idf
+      md5: a37312eb4e5e0283cf25a8c7e88ebfa8.dir
+      size: 2469002451
+      nfiles: 335
+  cluster_no_tf_idf@7:
+    cmd: poetry run cluster_profiles --model-path model/best-model.pt --output-dir
+      cluster/model/schwarzmarkt_d/no-tf-idf --profile-path profiles/schwarzmarkt_d.json
+      --threshold 0.3 --visualizations-path visualized_profiles/schwarzmarkt_d --no-tf-idf
+    deps:
+    - path: model
+      md5: a0a5a5fdcbb0bec7123a1382a830a8f6.dir
+      size: 1480078604
+      nfiles: 4
+    - path: profile_extraction/profile_clustering
+      md5: fa25765a2f093b43ed8a65658eb7eec6.dir
+      size: 34505
+      nfiles: 8
+    - path: profiles/schwarzmarkt_d.json
+      md5: 433003a8336a5e5e29dddc7ad04cdd0e
+      size: 42326904
+    - path: visualized_profiles/schwarzmarkt_d/
+      md5: 768d31752554f5de8d50d1ecacd4c366.dir
+      size: 8852204758
+      nfiles: 1200
+    outs:
+    - path: cluster/model/schwarzmarkt_d/no-tf-idf
+      md5: 15c35f14fb84f286aa40464a8ae2ef73.dir
+      size: 6263072175
+      nfiles: 848
+  cluster_no_tf_idf@11:
+    cmd: poetry run cluster_profiles --model-path transformer_model/best-model.pt
+      --output-dir cluster/transformer_model/schwarzmarkt_d/tf-idf --profile-path
+      profiles/schwarzmarkt_d.json --threshold 0.3 --visualizations-path visualized_profiles/schwarzmarkt_d
+      --tf-idf
+    deps:
+    - path: profile_extraction/profile_clustering
+      md5: fa25765a2f093b43ed8a65658eb7eec6.dir
+      size: 34505
+      nfiles: 8
+    - path: profiles/schwarzmarkt_d.json
+      md5: 433003a8336a5e5e29dddc7ad04cdd0e
+      size: 42326904
+    - path: transformer_model
+      md5: 9d3dc7571e1723c50813460b484e4ddf.dir
+      size: 1784572744
+      nfiles: 9
+    - path: visualized_profiles/schwarzmarkt_d/
+      md5: 768d31752554f5de8d50d1ecacd4c366.dir
+      size: 8852204758
+      nfiles: 1200
+    outs:
+    - path: cluster/transformer_model/schwarzmarkt_d/tf-idf
+      md5: 6d81d1251353344f31086e5eb0b5ac00.dir
+      size: 6263081471
+      nfiles: 848
+  cluster_no_tf_idf@6:
+    cmd: poetry run cluster_profiles --model-path model/best-model.pt --output-dir
+      cluster/model/schwarzmarkt_4/no-tf-idf --profile-path profiles/schwarzmarkt_4.json
+      --threshold 0.3 --visualizations-path visualized_profiles/schwarzmarkt_4 --no-tf-idf
+    deps:
+    - path: model
+      md5: a0a5a5fdcbb0bec7123a1382a830a8f6.dir
+      size: 1480078604
+      nfiles: 4
+    - path: profile_extraction/profile_clustering
+      md5: fa25765a2f093b43ed8a65658eb7eec6.dir
+      size: 34505
+      nfiles: 8
+    - path: profiles/schwarzmarkt_4.json
+      md5: 172948afeb1c1a22173605e739e9f408
+      size: 92099387
+    - path: visualized_profiles/schwarzmarkt_4/
+      md5: 2bc45f378caf36bf21b576ea76c7d08d.dir
+      size: 8799125572
+      nfiles: 1187
+    outs:
+    - path: cluster/model/schwarzmarkt_4/no-tf-idf
+      md5: 0088bca798e8f33e477b41797627a132.dir
+      size: 3815688080
+      nfiles: 509
+  cluster_no_tf_idf@13:
+    cmd: poetry run cluster_profiles --model-path model/best-model.pt --output-dir
+      cluster/model/schwarzmarkt_legacy/tf-idf --profile-path profiles/schwarzmarkt_legacy.json
+      --threshold 0.3 --visualizations-path visualized_profiles/schwarzmarkt_legacy
+      --tf-idf
+    deps:
+    - path: model
+      md5: a0a5a5fdcbb0bec7123a1382a830a8f6.dir
+      size: 1480078604
+      nfiles: 4
+    - path: profile_extraction/profile_clustering
+      md5: fa25765a2f093b43ed8a65658eb7eec6.dir
+      size: 34505
+      nfiles: 8
+    - path: profiles/schwarzmarkt_legacy.json
+      md5: 11c691aa6c406ed5bc2fee288d7202ef
+      size: 46309261
+    - path: visualized_profiles/schwarzmarkt_legacy/
+      md5: 19644d3e46d31f3ed0c3358c64b2d910.dir
+      size: 26563242477
+      nfiles: 3612
+    outs:
+    - path: cluster/model/schwarzmarkt_legacy/tf-idf
+      md5: 6bfbc30e1d661f905a8a69adcbf7c634.dir
+      size: 8865970186
+      nfiles: 1203
+  cluster_no_tf_idf@0:
+    cmd: poetry run cluster_profiles --model-path transformer_model/best-model.pt
+      --output-dir cluster/transformer_model/schwarzmarkt_4/no-tf-idf --profile-path
+      profiles/schwarzmarkt_4.json --threshold 0.3 --visualizations-path visualized_profiles/schwarzmarkt_4
+      --no-tf-idf
+    deps:
+    - path: profile_extraction/profile_clustering
+      md5: d78134d365a98518ad277b5d0650280a.dir
+      size: 37008
+      nfiles: 8
+    - path: profiles/schwarzmarkt_4.json
+      md5: 172948afeb1c1a22173605e739e9f408
+      size: 92099387
+    - path: transformer_model
+      md5: 9d3dc7571e1723c50813460b484e4ddf.dir
+      size: 1784572744
+      nfiles: 9
+    - path: visualized_profiles/schwarzmarkt_4/
+      md5: 2bc45f378caf36bf21b576ea76c7d08d.dir
+      size: 8799125572
+      nfiles: 1187
+    outs:
+    - path: cluster/transformer_model/schwarzmarkt_4/no-tf-idf
+      md5: 6c070b0dbdfd975b388ce60f1f7dd672.dir
+      size: 3815696349
+      nfiles: 509
+  cluster_no_tf_idf@3:
+    cmd: poetry run cluster_profiles --model-path model/best-model.pt --output-dir
+      cluster/model/schwarzmarkt_4/tf-idf --profile-path profiles/schwarzmarkt_4.json
+      --threshold 0.3 --visualizations-path visualized_profiles/schwarzmarkt_4 --tf-idf
+    deps:
+    - path: model
+      md5: a0a5a5fdcbb0bec7123a1382a830a8f6.dir
+      size: 1480078604
+      nfiles: 4
+    - path: profile_extraction/profile_clustering
+      md5: 50c3a36be695d59ad9b4d85d0d75f42e.dir
+      size: 36708
+      nfiles: 8
+    - path: profiles/schwarzmarkt_4.json
+      md5: 172948afeb1c1a22173605e739e9f408
+      size: 92099387
+    - path: visualized_profiles/schwarzmarkt_4/
+      md5: 2bc45f378caf36bf21b576ea76c7d08d.dir
+      size: 8799125572
+      nfiles: 1187
+    outs:
+    - path: cluster/model/schwarzmarkt_4/tf-idf
+      md5: a7ef1a5a1bcb3a7aaa1da3495a055707.dir
+      size: 3815687820
+      nfiles: 509
+  cluster_no_tf_idf@9:
+    cmd: poetry run cluster_profiles --model-path transformer_model/best-model.pt
+      --output-dir cluster/transformer_model/schwarzmarkt_legacy/tf-idf --profile-path
+      profiles/schwarzmarkt_legacy.json --threshold 0.3 --visualizations-path visualized_profiles/schwarzmarkt_legacy
+      --tf-idf
+    deps:
+    - path: profile_extraction/profile_clustering
+      md5: fa25765a2f093b43ed8a65658eb7eec6.dir
+      size: 34505
+      nfiles: 8
+    - path: profiles/schwarzmarkt_legacy.json
+      md5: 11c691aa6c406ed5bc2fee288d7202ef
+      size: 46309261
+    - path: transformer_model
+      md5: 9d3dc7571e1723c50813460b484e4ddf.dir
+      size: 1784572744
+      nfiles: 9
+    - path: visualized_profiles/schwarzmarkt_legacy/
+      md5: 19644d3e46d31f3ed0c3358c64b2d910.dir
+      size: 26563242477
+      nfiles: 3612
+    outs:
+    - path: cluster/transformer_model/schwarzmarkt_legacy/tf-idf
+      md5: 49192b573f558f57ede5d1afc419fc7c.dir
+      size: 8865983249
+      nfiles: 1203
+  cluster_no_tf_idf@5:
+    cmd: poetry run cluster_profiles --model-path model/best-model.pt --output-dir
+      cluster/model/schwarzmarkt_legacy/no-tf-idf --profile-path profiles/schwarzmarkt_legacy.json
+      --threshold 0.3 --visualizations-path visualized_profiles/schwarzmarkt_legacy
+      --no-tf-idf
+    deps:
+    - path: model
+      md5: a0a5a5fdcbb0bec7123a1382a830a8f6.dir
+      size: 1480078604
+      nfiles: 4
+    - path: profile_extraction/profile_clustering
+      md5: fa25765a2f093b43ed8a65658eb7eec6.dir
+      size: 34505
+      nfiles: 8
+    - path: profiles/schwarzmarkt_legacy.json
+      md5: 11c691aa6c406ed5bc2fee288d7202ef
+      size: 46309261
+    - path: visualized_profiles/schwarzmarkt_legacy/
+      md5: 19644d3e46d31f3ed0c3358c64b2d910.dir
+      size: 26563242477
+      nfiles: 3612
+    outs:
+    - path: cluster/model/schwarzmarkt_legacy/no-tf-idf
+      md5: 4e377bf3ac678ee06429a21ee33bcad4.dir
+      size: 8865971195
+      nfiles: 1203
+  cluster_no_tf_idf@8:
+    cmd: poetry run cluster_profiles --model-path transformer_model/best-model.pt
+      --output-dir cluster/transformer_model/schwarzmarkt_safe_port/tf-idf --profile-path
+      profiles/schwarzmarkt_safe_port.json --threshold 0.3 --visualizations-path visualized_profiles/schwarzmarkt_safe_port
+      --tf-idf
+    deps:
+    - path: profile_extraction/profile_clustering
+      md5: fa25765a2f093b43ed8a65658eb7eec6.dir
+      size: 34505
+      nfiles: 8
+    - path: profiles/schwarzmarkt_safe_port.json
+      md5: a9468cac37dba4691fb92a283359eced
+      size: 11087369
+    - path: transformer_model
+      md5: 9d3dc7571e1723c50813460b484e4ddf.dir
+      size: 1784572744
+      nfiles: 9
+    - path: visualized_profiles/schwarzmarkt_safe_port/
+      md5: 1f377c149dc3b7fa549046f17fbb3fac.dir
+      size: 3273282351
+      nfiles: 444
+    outs:
+    - path: cluster/transformer_model/schwarzmarkt_safe_port/tf-idf
+      md5: 4b69cfe4607c9f9210edaf0424e6419e.dir
+      size: 2469010770
+      nfiles: 335
+  cluster@1:
+    cmd: poetry run cluster_profiles --linkage average --model-path transformer_model/best-model.pt
+      --output-dir cluster/hybrid-no-tf-embedded --profile-path profiles/schwarzmarkt_4.json
+      --threshold 0.3 --visualizations-path visualized_profiles/schwarzmarkt_4 --no-tf-idf
+      --embeddings "model/best-model.pt" --embeddings-type "MODEL"
+    deps:
+    - path: profile_extraction/profile_clustering
+      md5: 0be9742ae84fa1dfa8aed8dcf7b2e9b9.dir
+      size: 100960
+      nfiles: 15
+    - path: profiles/schwarzmarkt_4.json
+      md5: a0029d0ae3ee0681c14fed6e9069cfab
+      size: 349896207
+    - path: transformer_model
+      md5: be27510da667767598d0bffcc0c6b651.dir
+      size: 2687919947
+      nfiles: 9
+    - path: visualized_profiles/schwarzmarkt_4/
+      md5: 75fba9277b27bc44e932faa1fffa0b2f.dir
+      size: 116162329
+      nfiles: 1187
+    outs:
+    - path: cluster/hybrid-no-tf-embedded
+      md5: 4ecb9c9a2ed51a00ff798bf3a3d55639.dir
+      size: 118578616
+      nfiles: 502
+  cluster@3:
+    cmd: poetry run cluster_profiles --linkage average --model-path transformer_model/best-model.pt
+      --output-dir cluster/finetuned-twitter-model-hybrid-no-tf-embedded --profile-path
+      profiles/schwarzmarkt_4.json --threshold 0.3 --visualizations-path visualized_profiles/schwarzmarkt_4
+      --no-tf-idf --embeddings "finetuned_twitter_model/best-model.pt" --embeddings-type
+      "MODEL"
+    deps:
+    - path: profile_extraction/profile_clustering
+      md5: 0be9742ae84fa1dfa8aed8dcf7b2e9b9.dir
+      size: 100960
+      nfiles: 15
+    - path: profiles/schwarzmarkt_4.json
+      md5: a0029d0ae3ee0681c14fed6e9069cfab
+      size: 349896207
+    - path: transformer_model
+      md5: be27510da667767598d0bffcc0c6b651.dir
+      size: 2687919947
+      nfiles: 9
+    - path: visualized_profiles/schwarzmarkt_4/
+      md5: 75fba9277b27bc44e932faa1fffa0b2f.dir
+      size: 116162329
+      nfiles: 1187
+    outs:
+    - path: cluster/finetuned-twitter-model-hybrid-no-tf-embedded
+      md5: 3dfe5b71bbf76d6f27b6c6ea5016f368.dir
+      size: 118582162
+      nfiles: 502
+  cluster@2:
+    cmd: poetry run cluster_profiles --linkage average --model-path transformer_model/best-model.pt
+      --output-dir cluster/twitter-model-hybrid-no-tf-embedded --profile-path profiles/schwarzmarkt_4.json
+      --threshold 0.3 --visualizations-path visualized_profiles/schwarzmarkt_4 --no-tf-idf
+      --embeddings "twitter_model/best-model.pt" --embeddings-type "MODEL"
+    deps:
+    - path: profile_extraction/profile_clustering
+      md5: 0be9742ae84fa1dfa8aed8dcf7b2e9b9.dir
+      size: 100960
+      nfiles: 15
+    - path: profiles/schwarzmarkt_4.json
+      md5: a0029d0ae3ee0681c14fed6e9069cfab
+      size: 349896207
+    - path: transformer_model
+      md5: be27510da667767598d0bffcc0c6b651.dir
+      size: 2687919947
+      nfiles: 9
+    - path: visualized_profiles/schwarzmarkt_4/
+      md5: 75fba9277b27bc44e932faa1fffa0b2f.dir
+      size: 116162329
+      nfiles: 1187
+    outs:
+    - path: cluster/twitter-model-hybrid-no-tf-embedded
+      md5: 359b5da64816a49e70c8400deb7c3c58.dir
+      size: 118580212
+      nfiles: 502
+  cluster@0:
+    cmd: poetry run cluster_profiles --linkage average --model-path transformer_model/best-model.pt
+      --output-dir cluster/hybrid-embedded --profile-path profiles/schwarzmarkt_4.json
+      --threshold 0.3 --visualizations-path visualized_profiles/schwarzmarkt_4 --tf-idf
+      --embeddings "model/best-model.pt" --embeddings-type "MODEL"
+    deps:
+    - path: profile_extraction/profile_clustering
+      md5: 0be9742ae84fa1dfa8aed8dcf7b2e9b9.dir
+      size: 100960
+      nfiles: 15
+    - path: profiles/schwarzmarkt_4.json
+      md5: a0029d0ae3ee0681c14fed6e9069cfab
+      size: 349896207
+    - path: transformer_model
+      md5: be27510da667767598d0bffcc0c6b651.dir
+      size: 2687919947
+      nfiles: 9
+    - path: visualized_profiles/schwarzmarkt_4/
+      md5: 75fba9277b27bc44e932faa1fffa0b2f.dir
+      size: 116162329
+      nfiles: 1187
+    outs:
+    - path: cluster/hybrid-embedded
+      md5: f1aba5b22109f7c54a47f306a4e8d536.dir
+      size: 118580008
+      nfiles: 502
+  cluster@4:
+    cmd: poetry run cluster_profiles --linkage average --model-path transformer_model/best-model.pt
+      --output-dir cluster/sentence-roberta-hybrid-no-tf-embedded --profile-path profiles/schwarzmarkt_4.json
+      --threshold 0.3 --visualizations-path visualized_profiles/schwarzmarkt_4 --no-tf-idf
+      --embeddings "T-Systems-onsite/cross-en-de-roberta-sentence-transformer" --embeddings-type
+      "TRANSFORMER"
+    deps:
+    - path: profile_extraction/profile_clustering
+      md5: 0be9742ae84fa1dfa8aed8dcf7b2e9b9.dir
+      size: 100960
+      nfiles: 15
+    - path: profiles/schwarzmarkt_4.json
+      md5: a0029d0ae3ee0681c14fed6e9069cfab
+      size: 349896207
+    - path: transformer_model
+      md5: be27510da667767598d0bffcc0c6b651.dir
+      size: 2687919947
+      nfiles: 9
+    - path: visualized_profiles/schwarzmarkt_4/
+      md5: 75fba9277b27bc44e932faa1fffa0b2f.dir
+      size: 116162329
+      nfiles: 1187
+    outs:
+    - path: cluster/sentence-roberta-hybrid-no-tf-embedded
+      md5: dcff84c292c7794198d75a8691401193.dir
+      size: 118580032
+      nfiles: 502
+  cluster@5:
+    cmd: poetry run cluster_profiles --linkage average --model-path transformer_model/best-model.pt
+      --output-dir cluster/fasttext-finetuned-twitter-model-hybrid-no-tf-embedded
+      --profile-path profiles/schwarzmarkt_4.json --threshold 0.2 --visualizations-path
+      visualized_profiles/schwarzmarkt_4 --no-tf-idf --embeddings "language_model/fasttext_german_twitter_finetune_telegram/model.bin"
+      --embeddings-type "LOWERCASED_FASTTEXT"
+    deps:
+    - path: profile_extraction/profile_clustering
+      md5: 0be9742ae84fa1dfa8aed8dcf7b2e9b9.dir
+      size: 100960
+      nfiles: 15
+    - path: profiles/schwarzmarkt_4.json
+      md5: a0029d0ae3ee0681c14fed6e9069cfab
+      size: 349896207
+    - path: transformer_model
+      md5: be27510da667767598d0bffcc0c6b651.dir
+      size: 2687919947
+      nfiles: 9
+    - path: visualized_profiles/schwarzmarkt_4/
+      md5: 75fba9277b27bc44e932faa1fffa0b2f.dir
+      size: 116162329
+      nfiles: 1187
+    outs:
+    - path: cluster/fasttext-finetuned-twitter-model-hybrid-no-tf-embedded
+      md5: d261fc56d415da3de58677bb2c064684.dir
+      size: 118590320
+      nfiles: 502
+  cluster@18:
+    cmd: poetry run cluster_profiles --model-path transformer_model/best-model.pt
+      --output-dir cluster/transformer_model/schwarzmarkt_legacy/MODEL/no-tf-idf-contextualized-
+      --profile-path profiles/schwarzmarkt_legacy.json --threshold 0.01 --visualizations-path
+      visualized_profiles/schwarzmarkt_legacy --no-tf-idf --contextualized --embeddings
+      "" --embeddings-type "MODEL"
+    deps:
+    - path: profile_extraction/profile_clustering
+      md5: aca567d7b68a1f2914e88fb3519170c6.dir
+      size: 49794
+      nfiles: 8
+    - path: profiles/schwarzmarkt_legacy.json
+      md5: 3ffd57ab5edad6f3a2fcff96514e4749
+      size: 46309261
+    - path: transformer_model
+      md5: 9d3dc7571e1723c50813460b484e4ddf.dir
+      size: 1784572744
+      nfiles: 9
+    - path: visualized_profiles/schwarzmarkt_legacy/
+      md5: cd792917bdd22245737714c51046a562.dir
+      size: 40117291
+      nfiles: 3612
+    outs:
+    - path: cluster/transformer_model/schwarzmarkt_legacy/MODEL/no-tf-idf-contextualized-
+      md5: 172ab8acbccfb86d595ac165d181cae5.dir
+      size: 39299574
+      nfiles: 1197
+  cluster@7:
+    cmd: poetry run cluster_profiles --model-path transformer_model/best-model.pt
+      --output-dir cluster/transformer_model/schwarzmarkt_4/FLAIR/tf-idf-not-contextualized-de-forward
+      --profile-path profiles/schwarzmarkt_4.json --threshold 0.01 --visualizations-path
+      visualized_profiles/schwarzmarkt_4 --tf-idf --not-contextualized --embeddings
+      "de-forward" --embeddings-type "FLAIR"
+    deps:
+    - path: profile_extraction/profile_clustering
+      md5: aca567d7b68a1f2914e88fb3519170c6.dir
+      size: 49794
+      nfiles: 8
+    - path: profiles/schwarzmarkt_4.json
+      md5: d2aed1c201787efc4b82544211cbc04c
+      size: 92099387
+    - path: transformer_model
+      md5: 9d3dc7571e1723c50813460b484e4ddf.dir
+      size: 1784572744
+      nfiles: 9
+    - path: visualized_profiles/schwarzmarkt_4/
+      md5: 53a75b3438be0d7a0c109ebcb85e48f4.dir
+      size: 82634467
+      nfiles: 1187
+    outs:
+    - path: cluster/transformer_model/schwarzmarkt_4/FLAIR/tf-idf-not-contextualized-de-forward
+      md5: 16a89c8e4041d178165dd78cee570229.dir
+      size: 84998238
+      nfiles: 510
+  cluster@11:
+    cmd: poetry run cluster_profiles --model-path transformer_model/best-model.pt
+      --output-dir cluster/transformer_model/schwarzmarkt_d/MODEL/tf-idf-not-contextualized-
+      --profile-path profiles/schwarzmarkt_d.json --threshold 0.01 --visualizations-path
+      visualized_profiles/schwarzmarkt_d --tf-idf --not-contextualized --embeddings
+      "" --embeddings-type "MODEL"
+    deps:
+    - path: profile_extraction/profile_clustering
+      md5: aca567d7b68a1f2914e88fb3519170c6.dir
+      size: 49794
+      nfiles: 8
+    - path: profiles/schwarzmarkt_d.json
+      md5: bea20f0c9a7560b3fb63f1d3e7bf782f
+      size: 42326904
+    - path: transformer_model
+      md5: 9d3dc7571e1723c50813460b484e4ddf.dir
+      size: 1784572744
+      nfiles: 9
+    - path: visualized_profiles/schwarzmarkt_d/
+      md5: 5fe6fcca7be6c9f31e09062616a6258e.dir
+      size: 40014751
+      nfiles: 1200
+    outs:
+    - path: cluster/transformer_model/schwarzmarkt_d/MODEL/tf-idf-not-contextualized-
+      md5: 8b082a1c6f25065cce4bdb147b8bef9b.dir
+      size: 43150932
+      nfiles: 849
+  cluster@16:
+    cmd: poetry run cluster_profiles --model-path transformer_model/best-model.pt
+      --output-dir cluster/transformer_model/schwarzmarkt_legacy/MODEL/tf-idf-not-contextualized-
+      --profile-path profiles/schwarzmarkt_legacy.json --threshold 0.01 --visualizations-path
+      visualized_profiles/schwarzmarkt_legacy --tf-idf --not-contextualized --embeddings
+      "" --embeddings-type "MODEL"
+    deps:
+    - path: profile_extraction/profile_clustering
+      md5: aca567d7b68a1f2914e88fb3519170c6.dir
+      size: 49794
+      nfiles: 8
+    - path: profiles/schwarzmarkt_legacy.json
+      md5: 3ffd57ab5edad6f3a2fcff96514e4749
+      size: 46309261
+    - path: transformer_model
+      md5: 9d3dc7571e1723c50813460b484e4ddf.dir
+      size: 1784572744
+      nfiles: 9
+    - path: visualized_profiles/schwarzmarkt_legacy/
+      md5: cd792917bdd22245737714c51046a562.dir
+      size: 40117291
+      nfiles: 3612
+    outs:
+    - path: cluster/transformer_model/schwarzmarkt_legacy/MODEL/tf-idf-not-contextualized-
+      md5: e7c8772df39d76c0ac83c9dbc3d7f85e.dir
+      size: 39300056
+      nfiles: 1204
+  cluster@14:
+    cmd: poetry run cluster_profiles --model-path transformer_model/best-model.pt
+      --output-dir cluster/transformer_model/schwarzmarkt_legacy/MODEL/no-tf-idf-not-contextualized-
+      --profile-path profiles/schwarzmarkt_legacy.json --threshold 0.01 --visualizations-path
+      visualized_profiles/schwarzmarkt_legacy --no-tf-idf --not-contextualized --embeddings
+      "" --embeddings-type "MODEL"
+    deps:
+    - path: profile_extraction/profile_clustering
+      md5: aca567d7b68a1f2914e88fb3519170c6.dir
+      size: 49794
+      nfiles: 8
+    - path: profiles/schwarzmarkt_legacy.json
+      md5: 3ffd57ab5edad6f3a2fcff96514e4749
+      size: 46309261
+    - path: transformer_model
+      md5: 9d3dc7571e1723c50813460b484e4ddf.dir
+      size: 1784572744
+      nfiles: 9
+    - path: visualized_profiles/schwarzmarkt_legacy/
+      md5: cd792917bdd22245737714c51046a562.dir
+      size: 40117291
+      nfiles: 3612
+    outs:
+    - path: cluster/transformer_model/schwarzmarkt_legacy/MODEL/no-tf-idf-not-contextualized-
+      md5: 56a44051d00a49088f0feecff319bd06.dir
+      size: 39223394
+      nfiles: 1204
+  cluster@6:
+    cmd: poetry run cluster_profiles --model-path transformer_model/best-model.pt
+      --output-dir cluster/flair-no-tf-embedded --profile-path profiles/schwarzmarkt_4.json
+      --threshold 0.15 --visualizations-path visualized_profiles/schwarzmarkt_4 --no-tf-idf
+      --embeddings "language_model/forward/best-lm.pt" --embeddings-type "FLAIR"
+    deps:
+    - path: profile_extraction/profile_clustering
+      md5: 9d5cfea47af74101bc869f0d1c884b73.dir
+      size: 50893
+      nfiles: 8
+    - path: profiles/schwarzmarkt_4.json
+      md5: d2aed1c201787efc4b82544211cbc04c
+      size: 92099387
+    - path: transformer_model
+      md5: 9d3dc7571e1723c50813460b484e4ddf.dir
+      size: 1784572744
+      nfiles: 9
+    - path: visualized_profiles/schwarzmarkt_4/
+      md5: 53a75b3438be0d7a0c109ebcb85e48f4.dir
+      size: 82634467
+      nfiles: 1187
+    outs:
+    - path: cluster/flair-no-tf-embedded
+      md5: 0a3a4b6d279b77273fd47efbfb0b15bc.dir
+      size: 85005390
+      nfiles: 510
+  cluster@19:
+    cmd: poetry run cluster_profiles --model-path transformer_model/best-model.pt
+      --output-dir cluster/transformer_model/schwarzmarkt_safe_port/MODEL/no-tf-idf-not-contextualized-
+      --profile-path profiles/schwarzmarkt_safe_port.json --threshold 0.01 --visualizations-path
+      visualized_profiles/schwarzmarkt_safe_port --no-tf-idf --not-contextualized
+      --embeddings "" --embeddings-type "MODEL"
+    deps:
+    - path: profile_extraction/profile_clustering
+      md5: aca567d7b68a1f2914e88fb3519170c6.dir
+      size: 49794
+      nfiles: 8
+    - path: profiles/schwarzmarkt_safe_port.json
+      md5: ba35377e4b73908ca3ce430c3f46aaa0
+      size: 11087369
+    - path: transformer_model
+      md5: 9d3dc7571e1723c50813460b484e4ddf.dir
+      size: 1784572744
+      nfiles: 9
+    - path: visualized_profiles/schwarzmarkt_safe_port/
+      md5: 4e6d1017810a09cbf53c6f4f82a56b58.dir
+      size: 12866450
+      nfiles: 444
+    outs:
+    - path: cluster/transformer_model/schwarzmarkt_safe_port/MODEL/no-tf-idf-not-contextualized-
+      md5: 20c572fa4c7a4f454902b3ee61bd94ee.dir
+      size: 16399024
+      nfiles: 336
+  cluster@17:
+    cmd: poetry run cluster_profiles --model-path model/best-model.pt --output-dir
+      cluster/model/schwarzmarkt_legacy/MODEL/tf-idf-not-contextualized- --profile-path
+      profiles/schwarzmarkt_legacy.json --threshold 0.4 --visualizations-path visualized_profiles/schwarzmarkt_legacy
+      --tf-idf --not-contextualized --embeddings "" --embeddings-type "MODEL"
+    deps:
+    - path: model
+      md5: 9589c90786b24a5c9559a74c03f8fb42.dir
+      size: 2960250902
+      nfiles: 8
+    - path: profile_extraction/profile_clustering
+      md5: aca567d7b68a1f2914e88fb3519170c6.dir
+      size: 49794
+      nfiles: 8
+    - path: profiles/schwarzmarkt_legacy.json
+      md5: 3ffd57ab5edad6f3a2fcff96514e4749
+      size: 46309261
+    - path: visualized_profiles/schwarzmarkt_legacy/
+      md5: cd792917bdd22245737714c51046a562.dir
+      size: 40117291
+      nfiles: 3612
+    outs:
+    - path: cluster/model/schwarzmarkt_legacy/MODEL/tf-idf-not-contextualized-
+      md5: 004e8f7d8ccc158fd6f8eafe68d4cd05.dir
+      size: 39189184
+      nfiles: 1204
+  cluster@9:
+    cmd: poetry run cluster_profiles --model-path transformer_model/best-model.pt
+      --output-dir cluster/transformer_model/schwarzmarkt_d/MODEL/no-tf-idf-not-contextualized-
+      --profile-path profiles/schwarzmarkt_d.json --threshold 0.01 --visualizations-path
+      visualized_profiles/schwarzmarkt_d --no-tf-idf --not-contextualized --embeddings
+      "" --embeddings-type "MODEL"
+    deps:
+    - path: profile_extraction/profile_clustering
+      md5: aca567d7b68a1f2914e88fb3519170c6.dir
+      size: 49794
+      nfiles: 8
+    - path: profiles/schwarzmarkt_d.json
+      md5: bea20f0c9a7560b3fb63f1d3e7bf782f
+      size: 42326904
+    - path: transformer_model
+      md5: 9d3dc7571e1723c50813460b484e4ddf.dir
+      size: 1784572744
+      nfiles: 9
+    - path: visualized_profiles/schwarzmarkt_d/
+      md5: 5fe6fcca7be6c9f31e09062616a6258e.dir
+      size: 40014751
+      nfiles: 1200
+    outs:
+    - path: cluster/transformer_model/schwarzmarkt_d/MODEL/no-tf-idf-not-contextualized-
+      md5: c04b87faf88f0239a57eb6d9cf184a41.dir
+      size: 43127107
+      nfiles: 849
+  cluster@12:
+    cmd: poetry run cluster_profiles --model-path model/best-model.pt --output-dir
+      cluster/model/schwarzmarkt_d/MODEL/tf-idf-not-contextualized- --profile-path
+      profiles/schwarzmarkt_d.json --threshold 0.4 --visualizations-path visualized_profiles/schwarzmarkt_d
+      --tf-idf --not-contextualized --embeddings "" --embeddings-type "MODEL"
+    deps:
+    - path: model
+      md5: 9589c90786b24a5c9559a74c03f8fb42.dir
+      size: 2960250902
+      nfiles: 8
+    - path: profile_extraction/profile_clustering
+      md5: aca567d7b68a1f2914e88fb3519170c6.dir
+      size: 49794
+      nfiles: 8
+    - path: profiles/schwarzmarkt_d.json
+      md5: bea20f0c9a7560b3fb63f1d3e7bf782f
+      size: 42326904
+    - path: visualized_profiles/schwarzmarkt_d/
+      md5: 5fe6fcca7be6c9f31e09062616a6258e.dir
+      size: 40014751
+      nfiles: 1200
+    outs:
+    - path: cluster/model/schwarzmarkt_d/MODEL/tf-idf-not-contextualized-
+      md5: 461761198e864399a9a522c165af2e0f.dir
+      size: 43080656
+      nfiles: 849
+  cluster@15:
+    cmd: poetry run cluster_profiles --model-path model/best-model.pt --output-dir
+      cluster/model/schwarzmarkt_legacy/MODEL/no-tf-idf-not-contextualized- --profile-path
+      profiles/schwarzmarkt_legacy.json --threshold 0.4 --visualizations-path visualized_profiles/schwarzmarkt_legacy
+      --no-tf-idf --not-contextualized --embeddings "" --embeddings-type "MODEL"
+    deps:
+    - path: model
+      md5: 9589c90786b24a5c9559a74c03f8fb42.dir
+      size: 2960250902
+      nfiles: 8
+    - path: profile_extraction/profile_clustering
+      md5: aca567d7b68a1f2914e88fb3519170c6.dir
+      size: 49794
+      nfiles: 8
+    - path: profiles/schwarzmarkt_legacy.json
+      md5: 3ffd57ab5edad6f3a2fcff96514e4749
+      size: 46309261
+    - path: visualized_profiles/schwarzmarkt_legacy/
+      md5: cd792917bdd22245737714c51046a562.dir
+      size: 40117291
+      nfiles: 3612
+    outs:
+    - path: cluster/model/schwarzmarkt_legacy/MODEL/no-tf-idf-not-contextualized-
+      md5: 8a3261cef6676b737db6bf3670bd110c.dir
+      size: 39188120
+      nfiles: 1204
+  cluster@8:
+    cmd: poetry run cluster_profiles --model-path transformer_model/best-model.pt
+      --output-dir cluster/transformer_model/schwarzmarkt_4/WORD/tf-idf-not-contextualized-de-crawl
+      --profile-path profiles/schwarzmarkt_4.json --threshold 0.01 --visualizations-path
+      visualized_profiles/schwarzmarkt_4 --tf-idf --not-contextualized --embeddings
+      "de-crawl" --embeddings-type "WORD"
+    deps:
+    - path: profile_extraction/profile_clustering
+      md5: aca567d7b68a1f2914e88fb3519170c6.dir
+      size: 49794
+      nfiles: 8
+    - path: profiles/schwarzmarkt_4.json
+      md5: d2aed1c201787efc4b82544211cbc04c
+      size: 92099387
+    - path: transformer_model
+      md5: 9d3dc7571e1723c50813460b484e4ddf.dir
+      size: 1784572744
+      nfiles: 9
+    - path: visualized_profiles/schwarzmarkt_4/
+      md5: 53a75b3438be0d7a0c109ebcb85e48f4.dir
+      size: 82634467
+      nfiles: 1187
+    outs:
+    - path: cluster/transformer_model/schwarzmarkt_4/WORD/tf-idf-not-contextualized-de-crawl
+      md5: f493c29743972b2aab4492e34adcff03.dir
+      size: 84945516
+      nfiles: 495
+  cluster@13:
+    cmd: poetry run cluster_profiles --model-path transformer_model/best-model.pt
+      --output-dir cluster/transformer_model/schwarzmarkt_d/MODEL/no-tf-idf-contextualized-
+      --profile-path profiles/schwarzmarkt_d.json --threshold 0.01 --visualizations-path
+      visualized_profiles/schwarzmarkt_d --no-tf-idf --contextualized --embeddings
+      "" --embeddings-type "MODEL"
+    deps:
+    - path: profile_extraction/profile_clustering
+      md5: aca567d7b68a1f2914e88fb3519170c6.dir
+      size: 49794
+      nfiles: 8
+    - path: profiles/schwarzmarkt_d.json
+      md5: bea20f0c9a7560b3fb63f1d3e7bf782f
+      size: 42326904
+    - path: transformer_model
+      md5: 9d3dc7571e1723c50813460b484e4ddf.dir
+      size: 1784572744
+      nfiles: 9
+    - path: visualized_profiles/schwarzmarkt_d/
+      md5: 5fe6fcca7be6c9f31e09062616a6258e.dir
+      size: 40014751
+      nfiles: 1200
+    outs:
+    - path: cluster/transformer_model/schwarzmarkt_d/MODEL/no-tf-idf-contextualized-
+      md5: bb1bf4bcaf18b83119d1a6ad6f196c56.dir
+      size: 43067950
+      nfiles: 842
+  cluster@10:
+    cmd: poetry run cluster_profiles --model-path model/best-model.pt --output-dir
+      cluster/model/schwarzmarkt_d/MODEL/no-tf-idf-not-contextualized- --profile-path
+      profiles/schwarzmarkt_d.json --threshold 0.4 --visualizations-path visualized_profiles/schwarzmarkt_d
+      --no-tf-idf --not-contextualized --embeddings "" --embeddings-type "MODEL"
+    deps:
+    - path: model
+      md5: 9589c90786b24a5c9559a74c03f8fb42.dir
+      size: 2960250902
+      nfiles: 8
+    - path: profile_extraction/profile_clustering
+      md5: aca567d7b68a1f2914e88fb3519170c6.dir
+      size: 49794
+      nfiles: 8
+    - path: profiles/schwarzmarkt_d.json
+      md5: bea20f0c9a7560b3fb63f1d3e7bf782f
+      size: 42326904
+    - path: visualized_profiles/schwarzmarkt_d/
+      md5: 5fe6fcca7be6c9f31e09062616a6258e.dir
+      size: 40014751
+      nfiles: 1200
+    outs:
+    - path: cluster/model/schwarzmarkt_d/MODEL/no-tf-idf-not-contextualized-
+      md5: 5187c8327696876c76347a97c0db3bef.dir
+      size: 43082668
+      nfiles: 849
+  cluster@20:
+    cmd: poetry run cluster_profiles --model-path model/best-model.pt --output-dir
+      cluster/model/schwarzmarkt_safe_port/MODEL/no-tf-idf-not-contextualized- --profile-path
+      profiles/schwarzmarkt_safe_port.json --threshold 0.4 --visualizations-path visualized_profiles/schwarzmarkt_safe_port
+      --no-tf-idf --not-contextualized --embeddings "" --embeddings-type "MODEL"
+    deps:
+    - path: model
+      md5: 9589c90786b24a5c9559a74c03f8fb42.dir
+      size: 2960250902
+      nfiles: 8
+    - path: profile_extraction/profile_clustering
+      md5: aca567d7b68a1f2914e88fb3519170c6.dir
+      size: 49794
+      nfiles: 8
+    - path: profiles/schwarzmarkt_safe_port.json
+      md5: ba35377e4b73908ca3ce430c3f46aaa0
+      size: 11087369
+    - path: visualized_profiles/schwarzmarkt_safe_port/
+      md5: 4e6d1017810a09cbf53c6f4f82a56b58.dir
+      size: 12866450
+      nfiles: 444
+    outs:
+    - path: cluster/model/schwarzmarkt_safe_port/MODEL/no-tf-idf-not-contextualized-
+      md5: ae69c42991b5c9db097b8e0259fac672.dir
+      size: 16368441
+      nfiles: 336
+  cluster@21:
+    cmd: poetry run cluster_profiles --model-path transformer_model/best-model.pt
+      --output-dir cluster/transformer_model/schwarzmarkt_safe_port/MODEL/tf-idf-not-contextualized-
+      --profile-path profiles/schwarzmarkt_safe_port.json --threshold 0.01 --visualizations-path
+      visualized_profiles/schwarzmarkt_safe_port --tf-idf --not-contextualized --embeddings
+      "" --embeddings-type "MODEL"
+    deps:
+    - path: profile_extraction/profile_clustering
+      md5: aca567d7b68a1f2914e88fb3519170c6.dir
+      size: 49794
+      nfiles: 8
+    - path: profiles/schwarzmarkt_safe_port.json
+      md5: ba35377e4b73908ca3ce430c3f46aaa0
+      size: 11087369
+    - path: transformer_model
+      md5: 9d3dc7571e1723c50813460b484e4ddf.dir
+      size: 1784572744
+      nfiles: 9
+    - path: visualized_profiles/schwarzmarkt_safe_port/
+      md5: 4e6d1017810a09cbf53c6f4f82a56b58.dir
+      size: 12866450
+      nfiles: 444
+    outs:
+    - path: cluster/transformer_model/schwarzmarkt_safe_port/MODEL/tf-idf-not-contextualized-
+      md5: 5b55a7e37915b2e424a67ff576d3d463.dir
+      size: 16398055
+      nfiles: 336
+  cluster@22:
+    cmd: poetry run cluster_profiles --model-path model/best-model.pt --output-dir
+      cluster/model/schwarzmarkt_safe_port/MODEL/tf-idf-not-contextualized- --profile-path
+      profiles/schwarzmarkt_safe_port.json --threshold 0.4 --visualizations-path visualized_profiles/schwarzmarkt_safe_port
+      --tf-idf --not-contextualized --embeddings "" --embeddings-type "MODEL"
+    deps:
+    - path: model
+      md5: 9589c90786b24a5c9559a74c03f8fb42.dir
+      size: 2960250902
+      nfiles: 8
+    - path: profile_extraction/profile_clustering
+      md5: aca567d7b68a1f2914e88fb3519170c6.dir
+      size: 49794
+      nfiles: 8
+    - path: profiles/schwarzmarkt_safe_port.json
+      md5: ba35377e4b73908ca3ce430c3f46aaa0
+      size: 11087369
+    - path: visualized_profiles/schwarzmarkt_safe_port/
+      md5: 4e6d1017810a09cbf53c6f4f82a56b58.dir
+      size: 12866450
+      nfiles: 444
+    outs:
+    - path: cluster/model/schwarzmarkt_safe_port/MODEL/tf-idf-not-contextualized-
+      md5: fccca68a4ebfa88fa4443ea9c9f74aec.dir
+      size: 16368592
+      nfiles: 336
+  cluster@23:
+    cmd: poetry run cluster_profiles --model-path transformer_model/best-model.pt
+      --output-dir cluster/transformer_model/schwarzmarkt_safe_port/MODEL/no-tf-idf-contextualized-
+      --profile-path profiles/schwarzmarkt_safe_port.json --threshold 0.01 --visualizations-path
+      visualized_profiles/schwarzmarkt_safe_port --no-tf-idf --contextualized --embeddings
+      "" --embeddings-type "MODEL"
+    deps:
+    - path: profile_extraction/profile_clustering
+      md5: aca567d7b68a1f2914e88fb3519170c6.dir
+      size: 49794
+      nfiles: 8
+    - path: profiles/schwarzmarkt_safe_port.json
+      md5: ba35377e4b73908ca3ce430c3f46aaa0
+      size: 11087369
+    - path: transformer_model
+      md5: 9d3dc7571e1723c50813460b484e4ddf.dir
+      size: 1784572744
+      nfiles: 9
+    - path: visualized_profiles/schwarzmarkt_safe_port/
+      md5: 4e6d1017810a09cbf53c6f4f82a56b58.dir
+      size: 12866450
+      nfiles: 444
+    outs:
+    - path: cluster/transformer_model/schwarzmarkt_safe_port/MODEL/no-tf-idf-contextualized-
+      md5: a3a49c8e9f9f14ac1f20131ea05ebb08.dir
+      size: 16385324
+      nfiles: 336
+  embedding_evaluation:
+    cmd: poetry run evaluate_embeddings --embeddings-type MODEL --embeddings model/best-model.pt
+      data/evaluation evaluation/classic_model_embeddings.csv
+  embedding_evaluation@0:
+    cmd: poetry run evaluate_embeddings --embeddings-type "MODEL" --embeddings "model/best-model.pt"
+      data/evaluation "evaluation/classic_model_embeddings.csv"
+    deps:
+    - path: data/evaluation
+      md5: 875b2958b689da71ec62bd774933a6f6.dir
+      size: 49229
+      nfiles: 12
+    - path: language_model/
+      md5: 7729b475793561582d78da6e9a42563c.dir
+      size: 7355509544
+      nfiles: 41
+    - path: model/
+      md5: 9589c90786b24a5c9559a74c03f8fb42.dir
+      size: 2960250902
+      nfiles: 8
+    - path: transformer_model/
+      md5: 9d3dc7571e1723c50813460b484e4ddf.dir
+      size: 1784572744
+      nfiles: 9
+    outs:
+    - path: evaluation/classic_model_embeddings.csv
+      md5: a46372c3283098728547339e62090980
+      size: 3033
+  embedding_evaluation@classic:
+    cmd: poetry run evaluate_embeddings --embeddings-type "MODEL" --embeddings "model/best-model.pt"
+      data/evaluation "evaluation/classic_model_embeddings.csv"
+    deps:
+    - path: data/evaluation
+      md5: 875b2958b689da71ec62bd774933a6f6.dir
+      size: 49229
+      nfiles: 12
+    - path: language_model/
+      md5: 7729b475793561582d78da6e9a42563c.dir
+      size: 7355509544
+      nfiles: 41
+    - path: model/
+      md5: 9589c90786b24a5c9559a74c03f8fb42.dir
+      size: 2960250902
+      nfiles: 8
+    - path: transformer_model/
+      md5: 9d3dc7571e1723c50813460b484e4ddf.dir
+      size: 1784572744
+      nfiles: 9
+    outs:
+    - path: evaluation/classic_model_embeddings.csv
+      md5: a46372c3283098728547339e62090980
+      size: 3033
+  embedding_evaluation@classic_model_embeddings:
+    cmd: poetry run evaluate_embeddings --embeddings-type "MODEL" --plot-affinity
+      "evaluation/classic_model_embeddings.pdf" --plot-differences "evaluation/classic_model_embeddings-differences.pdf"
+      --embeddings "model/best-model.pt" data/evaluation "evaluation/classic_model_embeddings-affinity.csv"
+      "evaluation/classic_model_embeddings-affinity-differences.csv"
+    deps:
+    - path: data/evaluation
+      md5: 6aa09f6cbbb80b235aa481a0739f3dca.dir
+      size: 17055
+      nfiles: 10
+    - path: language_model/
+      md5: 5ee7a8b9382519ac3382d614d35d8094.dir
+      size: 15048973518
+      nfiles: 73
+    - path: model/
+      md5: 8927bdd306eaa2eb3a76bf90dd07eb4d.dir
+      size: 2960227027
+      nfiles: 8
+    - path: profile_extraction/evaluation/evaluate_embeddings.py
+      md5: bc6dc633f70acd16a34dbb493218192c
+      size: 9956
+    - path: transformer_model/
+      md5: be27510da667767598d0bffcc0c6b651.dir
+      size: 2687919947
+      nfiles: 9
+    outs:
+    - path: evaluation/classic_model_embeddings-affinity-differences.csv
+      md5: cf5ab4c8dbdb07ee0b21f07cb4b931c4
+      size: 2848
+    - path: evaluation/classic_model_embeddings-affinity.csv
+      md5: b2f61ed1063e7f61435749dd94f6f722
+      size: 2161
+    - path: evaluation/classic_model_embeddings-differences.pdf
+      md5: 9f1aad50feeffb639ec0b017390febef
+      size: 19172
+    - path: evaluation/classic_model_embeddings.pdf
+      md5: 5236d4ef886a41d920780267043b77ab
+      size: 21220
+  embedding_evaluation@transformer_model_embeddings:
+    cmd: poetry run evaluate_embeddings --embeddings-type "MODEL" --plot-affinity
+      "evaluation/transformer_model_embeddings.pdf" --plot-differences "evaluation/transformer_model_embeddings-differences.pdf"
+      --embeddings "transformer_model/best-model.pt" data/evaluation "evaluation/transformer_model_embeddings-affinity.csv"
+      "evaluation/transformer_model_embeddings-affinity-differences.csv"
+    deps:
+    - path: data/evaluation
+      md5: 6aa09f6cbbb80b235aa481a0739f3dca.dir
+      size: 17055
+      nfiles: 10
+    - path: language_model/
+      md5: 5ee7a8b9382519ac3382d614d35d8094.dir
+      size: 15048973518
+      nfiles: 73
+    - path: model/
+      md5: 8927bdd306eaa2eb3a76bf90dd07eb4d.dir
+      size: 2960227027
+      nfiles: 8
+    - path: profile_extraction/evaluation/evaluate_embeddings.py
+      md5: bc6dc633f70acd16a34dbb493218192c
+      size: 9956
+    - path: transformer_model/
+      md5: be27510da667767598d0bffcc0c6b651.dir
+      size: 2687919947
+      nfiles: 9
+    outs:
+    - path: evaluation/transformer_model_embeddings-affinity-differences.csv
+      md5: bb07da06a93ab868fe1e63bc7a3e8a6c
+      size: 2864
+    - path: evaluation/transformer_model_embeddings-affinity.csv
+      md5: 5162ee5397bb865e747b68e4fce70207
+      size: 2116
+    - path: evaluation/transformer_model_embeddings-differences.pdf
+      md5: 0399c38b3cd8c048bc963a4a502bd792
+      size: 19130
+    - path: evaluation/transformer_model_embeddings.pdf
+      md5: d022b862d4f92ee31ba424c03754e365
+      size: 20753
+  embedding_evaluation@gbert_large_embeddings:
+    cmd: poetry run evaluate_embeddings --embeddings-type "TRANSFORMER" --plot-affinity
+      "evaluation/gbert_large_embeddings.pdf" --plot-differences "evaluation/gbert_large_embeddings-differences.pdf"
+      --embeddings "deepset/gbert-large" data/evaluation "evaluation/gbert_large_embeddings-affinity.csv"
+      "evaluation/gbert_large_embeddings-affinity-differences.csv"
+    deps:
+    - path: data/evaluation
+      md5: 6aa09f6cbbb80b235aa481a0739f3dca.dir
+      size: 17055
+      nfiles: 10
+    - path: language_model/
+      md5: 5ee7a8b9382519ac3382d614d35d8094.dir
+      size: 15048973518
+      nfiles: 73
+    - path: model/
+      md5: 8927bdd306eaa2eb3a76bf90dd07eb4d.dir
+      size: 2960227027
+      nfiles: 8
+    - path: profile_extraction/evaluation/evaluate_embeddings.py
+      md5: bc6dc633f70acd16a34dbb493218192c
+      size: 9956
+    - path: transformer_model/
+      md5: be27510da667767598d0bffcc0c6b651.dir
+      size: 2687919947
+      nfiles: 9
+    outs:
+    - path: evaluation/gbert_large_embeddings-affinity-differences.csv
+      md5: 75601eb558fdf329d69c7bff431bcc7c
+      size: 2897
+    - path: evaluation/gbert_large_embeddings-affinity.csv
+      md5: 5bfd9bb1471b96299d1af69f26fbe312
+      size: 2116
+    - path: evaluation/gbert_large_embeddings-differences.pdf
+      md5: ac99c966a1d6e444d7ab0f04d3b3193f
+      size: 19107
+    - path: evaluation/gbert_large_embeddings.pdf
+      md5: 238c263522910ebfebe2b328999b7a92
+      size: 21798
+  cluster_tf_idf:
+    cmd: poetry run cluster_tfidf --profiles-path "profiles/schwarzmarkt_4.json" --visualizations-path
+      "visualized_profiles/schwarzmarkt_4" --output-path "cluster/only-tf-idf" --threshold
+      0.3
+    deps:
+    - path: profile_extraction/profile_clustering
+      md5: 0be9742ae84fa1dfa8aed8dcf7b2e9b9.dir
+      size: 100960
+      nfiles: 15
+    - path: profiles/schwarzmarkt_4.json
+      md5: a0029d0ae3ee0681c14fed6e9069cfab
+      size: 349896207
+    - path: visualized_profiles/schwarzmarkt_4/
+      md5: 75fba9277b27bc44e932faa1fffa0b2f.dir
+      size: 116162329
+      nfiles: 1187
+    outs:
+    - path: cluster/only-tf-idf
+      md5: 4270489eb5c6f4c8dc2a8072a000593a.dir
+      size: 118548669
+      nfiles: 502
+  evaluate_nearest_neighbour:
+    cmd: poetry run evaluate_nn --dataset tmp/test.jsonl > nearest_neighbour_metrics.json
+    deps:
+    - path: profile_extraction/evaluation/evaluate_nn_algorithm.py
+      md5: 3406264170dd8c06978ecafe8df3cfa7
+      size: 5853
+    - path: tmp/test.jsonl
+      md5: d73ce06addf4ef2fde33023620b64f81
+      size: 139481
+    outs:
+    - path: nearest_neighbour_metrics.json
+      md5: 4f29d33e2757d2ce5f5ea0f554598cf1
+      size: 90
+  prepare_rule_based_pipeline:
+    cmd: poetry run create_pattern_file tmp/train.jsonl tmp/dev.jsonl rule_based_pipeline_resources/patterns.jsonl
+    deps:
+    - path: tmp/train.jsonl
+      md5: ae7412cfed321adf911de714fdcd001b
+      size: 600882
+    outs:
+    - path: rule_based_pipeline_resources/patterns.jsonl
+      md5: 3d529ad4210f14694d0df03466520bc3
+      size: 133477
+  train_fasttext_embeddings:
+    cmd: poetry run train_fasttext_embeddings data/raw/fasttext_german_twitter_100d.bin
+      data/raw/all.jsonl language_model/fasttext_german_twitter_finetune_telegram/model.bin
+    deps:
+    - path: data/raw/fasttext_german_twitter_100d.bin
+      md5: 072fdd52df049ef95e2ae39e47884246
+      size: 1138355173
+    - path: emb/test.txt
+      md5: 3ba0c7b9d6445f25d5e211f470544707
+      size: 586900
+    - path: emb/train/train_split_1
+      md5: bf7820dbe8de95d02eb193f862a33ff9
+      size: 4669061
+    - path: emb/valid.txt
+      md5: 79dc0e507319237fb825c81d3caa266b
+      size: 590451
+    - path: profile_extraction/ner_model/train_embeddings.py
+      md5: 778222c8a077107e11a299b775577104
+      size: 3320
+    outs:
+    - path: language_model/fasttext_german_twitter_finetune_telegram/model.bin
+      md5: 9bd0fdf92438af4c3011a0f9e8ebc61a
+      size: 1139707767
+  train_finetuned_twitter_model:
+    cmd: poetry run train_fasttext_model tmp finetuned_twitter_model language_model/fasttext_german_twitter_finetune_telegram/model.bin
+    deps:
+    - path: language_model/fasttext_german_twitter_finetune_telegram/model.bin
+      md5: 9bd0fdf92438af4c3011a0f9e8ebc61a
+      size: 1139707767
+    - path: profile_extraction/ner_model/corpus.py
+      md5: 429c8f502e5f341601d857b3c38b9435
+      size: 11040
+    - path: profile_extraction/ner_model/train_fasttext.py
+      md5: 7c62e8e0eea00216b33467d62d1d3794
+      size: 2870
+    - path: tmp/dev.jsonl
+      md5: 0b80e0078129c0701c681911e9f4e3a6
+      size: 118902
+    - path: tmp/test.jsonl
+      md5: d73ce06addf4ef2fde33023620b64f81
+      size: 139481
+    - path: tmp/train.jsonl
+      md5: ae7412cfed321adf911de714fdcd001b
+      size: 600882
+    outs:
+    - path: finetuned_twitter_model/best-model.pt
+      md5: e3d4c87acfc0ca163419c14f2e29b368
+      size: 1636416123
+    - path: finetuned_twitter_model/loss.tsv
+      md5: c4ab8d1cea3e5725cfb51428e15fc33b
+      size: 6761
+    - path: finetuned_twitter_model/training.log
+      md5: ab139f1a047a4a27ff9979e96e2a57c3
+      size: 124001
+  finetuned_twitter_model_metrics:
+    cmd: poetry run evaluate -m finetuned_twitter_model/best-model.pt -d tmp/test.jsonl
+      finetuned_twitter_model/metrics.json
+    deps:
+    - path: finetuned_twitter_model/best-model.pt
+      md5: e3d4c87acfc0ca163419c14f2e29b368
+      size: 1636416123
+    - path: profile_extraction/ner_model/evaluate.py
+      md5: 2a933855d15dd60350b1482e7ce3ee59
+      size: 1060
+    - path: tmp/test.jsonl
+      md5: d73ce06addf4ef2fde33023620b64f81
+      size: 139481
+    outs:
+    - path: finetuned_twitter_model/metrics.json
+      md5: 80a5ffe7546e8e553d159e0e21a4ed58
+      size: 1207
+  train_twitter_model:
+    cmd: poetry run train_fasttext_model tmp twitter_model data/raw/fasttext_german_twitter_100d.bin
+    deps:
+    - path: data/raw/fasttext_german_twitter_100d.bin
+      md5: 072fdd52df049ef95e2ae39e47884246
+      size: 1138355173
+    - path: profile_extraction/ner_model/corpus.py
+      md5: 429c8f502e5f341601d857b3c38b9435
+      size: 11040
+    - path: profile_extraction/ner_model/train_fasttext.py
+      md5: 7c62e8e0eea00216b33467d62d1d3794
+      size: 2870
+    - path: tmp/dev.jsonl
+      md5: 0b80e0078129c0701c681911e9f4e3a6
+      size: 118902
+    - path: tmp/test.jsonl
+      md5: d73ce06addf4ef2fde33023620b64f81
+      size: 139481
+    - path: tmp/train.jsonl
+      md5: ae7412cfed321adf911de714fdcd001b
+      size: 600882
+    outs:
+    - path: twitter_model/best-model.pt
+      md5: 76f207b22eb736b13cd178139e40f31b
+      size: 1634136187
+    - path: twitter_model/loss.tsv
+      md5: c2a63c36287da581927ee8503b5511c0
+      size: 5701
+    - path: twitter_model/training.log
+      md5: 1fc3e442ec956c9497dbd06db45b4027
+      size: 104720
+  twitter_model_metrics:
+    cmd: poetry run evaluate -m twitter_model/best-model.pt -d tmp/test.jsonl twitter_model/metrics.json
+    deps:
+    - path: profile_extraction/ner_model/evaluate.py
+      md5: 2a933855d15dd60350b1482e7ce3ee59
+      size: 1060
+    - path: tmp/test.jsonl
+      md5: d73ce06addf4ef2fde33023620b64f81
+      size: 139481
+    - path: twitter_model/best-model.pt
+      md5: 76f207b22eb736b13cd178139e40f31b
+      size: 1634136187
+    outs:
+    - path: twitter_model/metrics.json
+      md5: 65316cb2f38e201cece9367513a22479
+      size: 1218
+  embedding_evaluation@twitter_model_embeddings:
+    cmd: poetry run evaluate_embeddings --embeddings-type "MODEL" --plot-affinity
+      "evaluation/twitter_model_embeddings.pdf" --plot-differences "evaluation/twitter_model_embeddings-differences.pdf"
+      --embeddings "twitter_model/best-model.pt" data/evaluation "evaluation/twitter_model_embeddings-affinity.csv"
+      "evaluation/twitter_model_embeddings-affinity-differences.csv"
+    deps:
+    - path: data/evaluation
+      md5: 6aa09f6cbbb80b235aa481a0739f3dca.dir
+      size: 17055
+      nfiles: 10
+    - path: language_model/
+      md5: 5ee7a8b9382519ac3382d614d35d8094.dir
+      size: 15048973518
+      nfiles: 73
+    - path: model/
+      md5: 8927bdd306eaa2eb3a76bf90dd07eb4d.dir
+      size: 2960227027
+      nfiles: 8
+    - path: profile_extraction/evaluation/evaluate_embeddings.py
+      md5: bc6dc633f70acd16a34dbb493218192c
+      size: 9956
+    - path: transformer_model/
+      md5: be27510da667767598d0bffcc0c6b651.dir
+      size: 2687919947
+      nfiles: 9
+    outs:
+    - path: evaluation/twitter_model_embeddings-affinity-differences.csv
+      md5: 85f08f2e3eb878955188123a6c1b86cf
+      size: 2833
+    - path: evaluation/twitter_model_embeddings-affinity.csv
+      md5: a2113fa5b5176878926dd8a48d7dabe2
+      size: 2163
+    - path: evaluation/twitter_model_embeddings-differences.pdf
+      md5: d9d88dd62727ca67995d29950459dc2f
+      size: 19165
+    - path: evaluation/twitter_model_embeddings.pdf
+      md5: 228d8fd2c7dfbf9aa83a2eac5f9961ce
+      size: 20690
+  embedding_evaluation@finetuned_twitter_model_embeddings:
+    cmd: poetry run evaluate_embeddings --embeddings-type "MODEL" --plot-affinity
+      "evaluation/finetuned_twitter_model_embeddings.pdf" --plot-differences "evaluation/finetuned_twitter_model_embeddings-differences.pdf"
+      --embeddings "finetuned_twitter_model/best-model.pt" data/evaluation "evaluation/finetuned_twitter_model_embeddings-affinity.csv"
+      "evaluation/finetuned_twitter_model_embeddings-affinity-differences.csv"
+    deps:
+    - path: data/evaluation
+      md5: 6aa09f6cbbb80b235aa481a0739f3dca.dir
+      size: 17055
+      nfiles: 10
+    - path: language_model/
+      md5: 5ee7a8b9382519ac3382d614d35d8094.dir
+      size: 15048973518
+      nfiles: 73
+    - path: model/
+      md5: 8927bdd306eaa2eb3a76bf90dd07eb4d.dir
+      size: 2960227027
+      nfiles: 8
+    - path: profile_extraction/evaluation/evaluate_embeddings.py
+      md5: bc6dc633f70acd16a34dbb493218192c
+      size: 9956
+    - path: transformer_model/
+      md5: be27510da667767598d0bffcc0c6b651.dir
+      size: 2687919947
+      nfiles: 9
+    outs:
+    - path: evaluation/finetuned_twitter_model_embeddings-affinity-differences.csv
+      md5: 6091f0f911d7b44529d346d57c6669d8
+      size: 2837
+    - path: evaluation/finetuned_twitter_model_embeddings-affinity.csv
+      md5: 192f1b747feb764ee8c4bebe4d209497
+      size: 2161
+    - path: evaluation/finetuned_twitter_model_embeddings-differences.pdf
+      md5: 4cedf2dea3182e78a711f4d5ae52f740
+      size: 19213
+    - path: evaluation/finetuned_twitter_model_embeddings.pdf
+      md5: 7e6a7b4130c27598ceabf32e1f9d0eed
+      size: 20785
+  embedding_evaluation@sentence_roberta:
+    cmd: poetry run evaluate_embeddings --embeddings-type "TRANSFORMER" --plot-affinity
+      "evaluation/sentence_roberta.pdf" --plot-differences "evaluation/sentence_roberta-differences.pdf"
+      --embeddings "T-Systems-onsite/cross-en-de-roberta-sentence-transformer" data/evaluation
+      "evaluation/sentence_roberta-affinity.csv" "evaluation/sentence_roberta-affinity-differences.csv"
+    deps:
+    - path: data/evaluation
+      md5: 6aa09f6cbbb80b235aa481a0739f3dca.dir
+      size: 17055
+      nfiles: 10
+    - path: language_model/
+      md5: 5ee7a8b9382519ac3382d614d35d8094.dir
+      size: 15048973518
+      nfiles: 73
+    - path: model/
+      md5: 8927bdd306eaa2eb3a76bf90dd07eb4d.dir
+      size: 2960227027
+      nfiles: 8
+    - path: profile_extraction/evaluation/evaluate_embeddings.py
+      md5: bc6dc633f70acd16a34dbb493218192c
+      size: 9956
+    - path: transformer_model/
+      md5: be27510da667767598d0bffcc0c6b651.dir
+      size: 2687919947
+      nfiles: 9
+    outs:
+    - path: evaluation/sentence_roberta-affinity-differences.csv
+      md5: f7a6481d46ea721a99319645d2edd336
+      size: 2850
+    - path: evaluation/sentence_roberta-affinity.csv
+      md5: a8de7db7826aaaccf40731f97a27ac05
+      size: 2170
+    - path: evaluation/sentence_roberta-differences.pdf
+      md5: 0d07f9ebeede9ba3e3ec7da6a5acfc33
+      size: 19126
+    - path: evaluation/sentence_roberta.pdf
+      md5: 0bcc7a89a80671d080de50a6446fb4ec
+      size: 20738
+  train_relation_model:
+    cmd: poetry run relation_model train tmp/ relation_model/ --ner-model-path transformer_model/best-model.pt
+      --learning-rate 3.17e-5 --mini-batch-size 16 --patience 4 --max-epochs 400 --model
+      deepset/gbert-large --word-dropout 0.1431 --locked-dropout 0.0713 --dropout
+      0.0253
+    deps:
+    - path: profile_extraction/ner_model/corpus.py
+      md5: 429c8f502e5f341601d857b3c38b9435
+      size: 11040
+    - path: profile_extraction/rel_model/train.py
+      md5: 0288e5372c4aee564e3bac59e1237d1d
+      size: 6070
+    - path: tmp/dev.jsonl
+      md5: 0b80e0078129c0701c681911e9f4e3a6
+      size: 118902
+    - path: tmp/test.jsonl
+      md5: d73ce06addf4ef2fde33023620b64f81
+      size: 139481
+    - path: tmp/train.jsonl
+      md5: ae7412cfed321adf911de714fdcd001b
+      size: 600882
+    - path: transformer_model/best-model.pt
+      md5: 1956d21ae21d41b3182220a3884228e3
+      size: 1343214253
+    outs:
+    - path: relation_model/best-model.pt
+      md5: 894608b09c8e337cfb92e60285ba52af
+      size: 1376752873
+    - path: relation_model/loss.tsv
+      md5: 6fcb3b6992e4f46a0fa64b5846f8179b
+      size: 36674
+    - path: relation_model/training.log
+      md5: ec9b32c91af21ce8063525efcaaf7bbc
+      size: 623387
+  relation_model_metrics:
+    cmd: poetry run relation_model evaluate tmp/test.jsonl relation_model/best-model.pt
+      relation_model/metrics.json
+    deps:
+    - path: profile_extraction/rel_model/main.py
+      md5: e1a715e93df2c91ca4bed3fbff0cf198
+      size: 4356
+    - path: relation_model/best-model.pt
+      md5: 894608b09c8e337cfb92e60285ba52af
+      size: 1376752873
+    - path: tmp/test.jsonl
+      md5: d73ce06addf4ef2fde33023620b64f81
+      size: 139481
+    outs:
+    - path: relation_model/metrics.json
+      md5: 8a8beb65e57e08dfc03043a708206430
+      size: 746
+  relation_model_metrics_full:
+    cmd: poetry run relation_model evaluate tmp/test.jsonl relation_model/best-model.pt
+      relation_model/metrics_full.json --ner-model-path transformer_model/best-model.pt
+    deps:
+    - path: profile_extraction/rel_model/main.py
+      md5: e1a715e93df2c91ca4bed3fbff0cf198
+      size: 4356
+    - path: relation_model/best-model.pt
+      md5: 894608b09c8e337cfb92e60285ba52af
+      size: 1376752873
+    - path: tmp/test.jsonl
+      md5: d73ce06addf4ef2fde33023620b64f81
+      size: 139481
+    - path: transformer_model/best-model.pt
+      md5: 1956d21ae21d41b3182220a3884228e3
+      size: 1343214253
+    outs:
+    - path: relation_model/metrics_full.json
+      md5: 274b2826c1ec99e177010196b547114d
+      size: 763
+  evaluate_rule_based_pipeline:
+    cmd: poetry run score_rule_based_pipeline rule_based_pipeline_resources/patterns.jsonl
+      tmp/test.jsonl > rule_based_pipeline_resources/metrics.txt
+    deps:
+    - path: rule_based_pipeline_resources/patterns.jsonl
+      md5: 3d529ad4210f14694d0df03466520bc3
+      size: 133477
+    - path: tmp/test.jsonl
+      md5: d73ce06addf4ef2fde33023620b64f81
+      size: 139481
+    outs:
+    - path: rule_based_pipeline_resources/metrics.txt
+      md5: e40c144e45291861ddb1d9b17db01df4
+      size: 8434
+  embedding_evaluation@finetuned_twitter_embeddings:
+    cmd: poetry run evaluate_embeddings --embeddings-type "LOWERCASED_FASTTEXT" --plot-affinity
+      "evaluation/finetuned_twitter_embeddings.pdf" --plot-differences "evaluation/finetuned_twitter_embeddings-differences.pdf"
+      --embeddings "language_model/fasttext_german_twitter_finetune_telegram/model.bin"
+      data/evaluation "evaluation/finetuned_twitter_embeddings-affinity.csv" "evaluation/finetuned_twitter_embeddings-affinity-differences.csv"
+    deps:
+    - path: data/evaluation
+      md5: 6aa09f6cbbb80b235aa481a0739f3dca.dir
+      size: 17055
+      nfiles: 10
+    - path: language_model/
+      md5: 5ee7a8b9382519ac3382d614d35d8094.dir
+      size: 15048973518
+      nfiles: 73
+    - path: model/
+      md5: 8927bdd306eaa2eb3a76bf90dd07eb4d.dir
+      size: 2960227027
+      nfiles: 8
+    - path: profile_extraction/evaluation/evaluate_embeddings.py
+      md5: bc6dc633f70acd16a34dbb493218192c
+      size: 9956
+    - path: transformer_model/
+      md5: be27510da667767598d0bffcc0c6b651.dir
+      size: 2687919947
+      nfiles: 9
+    outs:
+    - path: evaluation/finetuned_twitter_embeddings-affinity-differences.csv
+      md5: 6bcf21bac934a789f7eea113bb5c9701
+      size: 2836
+    - path: evaluation/finetuned_twitter_embeddings-affinity.csv
+      md5: dc7729189f2df4e634833b6e55558d32
+      size: 2113
+    - path: evaluation/finetuned_twitter_embeddings-differences.pdf
+      md5: 6a430840a13bd51301c61d94a1682c01
+      size: 19190
+    - path: evaluation/finetuned_twitter_embeddings.pdf
+      md5: b43494edc4523256f967eec7bffd37d1
+      size: 20541
+  embedding_evaluation@twitter_embeddings:
+    cmd: poetry run evaluate_embeddings --embeddings-type "LOWERCASED_FASTTEXT" --plot-affinity
+      "evaluation/twitter_embeddings.pdf" --plot-differences "evaluation/twitter_embeddings-differences.pdf"
+      --embeddings "data/raw/fasttext_german_twitter_100d.bin" data/evaluation "evaluation/twitter_embeddings-affinity.csv"
+      "evaluation/twitter_embeddings-affinity-differences.csv"
+    deps:
+    - path: data/evaluation
+      md5: 6aa09f6cbbb80b235aa481a0739f3dca.dir
+      size: 17055
+      nfiles: 10
+    - path: language_model/
+      md5: 5ee7a8b9382519ac3382d614d35d8094.dir
+      size: 15048973518
+      nfiles: 73
+    - path: model/
+      md5: 8927bdd306eaa2eb3a76bf90dd07eb4d.dir
+      size: 2960227027
+      nfiles: 8
+    - path: profile_extraction/evaluation/evaluate_embeddings.py
+      md5: bc6dc633f70acd16a34dbb493218192c
+      size: 9956
+    - path: transformer_model/
+      md5: be27510da667767598d0bffcc0c6b651.dir
+      size: 2687919947
+      nfiles: 9
+    outs:
+    - path: evaluation/twitter_embeddings-affinity-differences.csv
+      md5: f4dc6c1dae6560ed69b860d4e6b7457a
+      size: 2831
+    - path: evaluation/twitter_embeddings-affinity.csv
+      md5: e012d124009c04d91188442f50cfe7ec
+      size: 2160
+    - path: evaluation/twitter_embeddings-differences.pdf
+      md5: 7a174813c626af4c871469e5b46329fd
+      size: 19230
+    - path: evaluation/twitter_embeddings.pdf
+      md5: afdd160c98e517055370360d6cf3248b
+      size: 20979
+  embedding_evaluation@twitter_bert_embeddings:
+    cmd: poetry run evaluate_embeddings --embeddings-type "TRANSFORMER" --plot-affinity
+      "evaluation/twitter_bert_embeddings.pdf" --plot-differences "evaluation/twitter_bert_embeddings-differences.pdf"
+      --embeddings "Twitter/twhin-bert-large" data/evaluation "evaluation/twitter_bert_embeddings-affinity.csv"
+      "evaluation/twitter_bert_embeddings-affinity-differences.csv"
+    deps:
+    - path: data/evaluation
+      md5: 6aa09f6cbbb80b235aa481a0739f3dca.dir
+      size: 17055
+      nfiles: 10
+    - path: language_model/
+      md5: 5ee7a8b9382519ac3382d614d35d8094.dir
+      size: 15048973518
+      nfiles: 73
+    - path: model/
+      md5: 8927bdd306eaa2eb3a76bf90dd07eb4d.dir
+      size: 2960227027
+      nfiles: 8
+    - path: profile_extraction/evaluation/evaluate_embeddings.py
+      md5: bc6dc633f70acd16a34dbb493218192c
+      size: 9956
+    - path: transformer_model/
+      md5: be27510da667767598d0bffcc0c6b651.dir
+      size: 2687919947
+      nfiles: 9
+    outs:
+    - path: evaluation/twitter_bert_embeddings-affinity-differences.csv
+      md5: 9ff97ffb2d69ea9373e35ee1ab5fd321
+      size: 2853
+    - path: evaluation/twitter_bert_embeddings-affinity.csv
+      md5: 7866f755a056d6e95ecd589fdafdedb9
+      size: 2144
+    - path: evaluation/twitter_bert_embeddings-differences.pdf
+      md5: 77c0b7addced5b036da478ad69d6f23b
+      size: 19196
+    - path: evaluation/twitter_bert_embeddings.pdf
+      md5: 045ce700c395e4c797dec7fe3e8fb23e
+      size: 20873
+  data_analysis:
+    cmd: poetry run metadata_analysis create-offerings-file metadata_analysis_results/streaming_product_offerings.json
+      profiles/schwarzmarkt_4.json profiles/schwarzmarkt_d.json profiles/schwarzmarkt_legacy.json
+      profiles/schwarzmarkt_safe_port.json
+    deps:
+    - path: profile_extraction/metadata_analysis/create_relation_based_product_offerings.py
+      md5: 0285897cf716861d6c5ca7ac1be06398
+      size: 8242
+    - path: profiles/schwarzmarkt_4.json
+      md5: a0029d0ae3ee0681c14fed6e9069cfab
+      size: 349896207
+    - path: profiles/schwarzmarkt_d.json
+      md5: 7c19c21b7107111fdbb4de2797bde4fc
+      size: 160408523
+    - path: profiles/schwarzmarkt_legacy.json
+      md5: 175d7ebbdfd69b246a1963bd36967f37
+      size: 154931360
+    - path: profiles/schwarzmarkt_safe_port.json
+      md5: 9f6bf5e65389a86de971d68d7f794a40
+      size: 36859752
+    outs:
+    - path: metadata_analysis_results/streaming_product_offerings.json
+      md5: 05ab9e55b284a7537281a9940f45d6ae
+      size: 405320
+  price_per_month_scatter:
+    cmd: poetry run metadata_analysis create-cost-scatterplot metadata_analysis_results/streaming_product_offerings.json
+      "pictures and graphics/price_scatterplot.pdf"
+    deps:
+    - path: metadata_analysis_results/streaming_product_offerings.json
+      md5: 05ab9e55b284a7537281a9940f45d6ae
+      size: 405320
+    - path: profile_extraction/metadata_analysis/price_per_month_and_length_of_crit.py
+      md5: 810792b0371c4d3ddd56a96783da072c
+      size: 1150
+    outs:
+    - path: pictures and graphics/price_scatterplot.pdf
+      md5: a232ed93ece0b38a2d8026f52960b3e2
+      size: 48553
+  offerings_boxplot:
+    cmd: poetry run metadata_analysis create-boxplot-offers metadata_analysis_results/streaming_product_offerings.json
+      "pictures and graphics/offerings_boxplot.pdf"
+    deps:
+    - path: metadata_analysis_results/streaming_product_offerings.json
+      md5: 05ab9e55b284a7537281a9940f45d6ae
+      size: 405320
+    - path: profile_extraction/metadata_analysis/box_plot_streamining_offers.py
+      md5: d3fa56e274fb88513aad1431c4605a0f
+      size: 1165
+    outs:
+    - path: pictures and graphics/offerings_boxplot.pdf
+      md5: c8d65580f47e432f363ff8c5b66abdc9
+      size: 14378
+  subscription_hist:
+    cmd: poetry run metadata_analysis create-subscriptions-hist metadata_analysis_results/streaming_product_offerings.json
+      "pictures and graphics/subscriptions_histogram.pdf"
+    deps:
+    - path: metadata_analysis_results/streaming_product_offerings.json
+      md5: 05ab9e55b284a7537281a9940f45d6ae
+      size: 405320
+    - path: profile_extraction/metadata_analysis/hist_constr_type.py
+      md5: 944242570b5a75b3c34dd80bc554b214
+      size: 1338
+    outs:
+    - path: pictures and graphics/subscriptions_histogram.pdf
+      md5: e6f2b238b07050e3c96d41cd17567d38
+      size: 12390

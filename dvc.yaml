@@ -1,0 +1,425 @@
+stages:
+  prepare_data:
+    cmd: poetry run data_split --random-state 42 --dev-split 0.15 --test-split 0.15 data/interim/all_annotations_fixed.jsonl tmp/train.jsonl tmp/dev.jsonl tmp/test.jsonl
+    deps:
+    - data/interim/all_annotations_fixed.jsonl
+    - profile_extraction/util/main.py
+    - profile_extraction/util/utils.py
+    outs:
+    - tmp/train.jsonl
+    - tmp/dev.jsonl
+    - tmp/test.jsonl
+
+  prepare_text_corpus:
+    cmd: poetry run create_text_corpus --random-state 42 --dev-split 0.1 --test-split 0.1 data/raw/all.jsonl emb/train/train_split_1 emb/valid.txt emb/test.txt
+    deps:
+    - data/raw/all.jsonl
+    - profile_extraction/util/main.py
+    - profile_extraction/util/utils.py
+    outs:
+    - emb/train/train_split_1
+    - emb/valid.txt
+    - emb/test.txt
+
+  prepare_rule_based_pipeline:
+    cmd: poetry run create_pattern_file tmp/train.jsonl tmp/dev.jsonl rule_based_pipeline_resources/patterns.jsonl
+    deps:
+    - tmp/train.jsonl
+    outs:
+    - rule_based_pipeline_resources/patterns.jsonl
+
+  evaluate_rule_based_pipeline:
+    cmd: poetry run score_rule_based_pipeline rule_based_pipeline_resources/patterns.jsonl tmp/test.jsonl > rule_based_pipeline_resources/metrics.txt
+    deps:
+    - rule_based_pipeline_resources/patterns.jsonl
+    - tmp/test.jsonl
+    metrics:
+    - rule_based_pipeline_resources/metrics.txt
+
+  train_forward_lm:
+    cmd: poetry run train_embeddings --forward emb/ language_model/forward
+    deps:
+    - emb/train/train_split_1
+    - emb/valid.txt
+    - emb/test.txt
+    - profile_extraction/ner_model/train_embeddings.py
+    outs:
+    - language_model/forward/best-lm.pt
+    - language_model/forward/training.log
+    - language_model/forward/loss.txt
+
+  train_backward_lm:
+    cmd: poetry run train_embeddings --backward emb/ language_model/backward
+    deps:
+    - emb/train/train_split_1
+    - emb/valid.txt
+    - emb/test.txt
+    - profile_extraction/ner_model/train_embeddings.py
+    outs:
+    - language_model/backward/best-lm.pt
+    - language_model/backward/training.log
+    - language_model/backward/loss.txt
+
+  train_fasttext_embeddings:
+    cmd: poetry run train_fasttext_embeddings data/raw/fasttext_german_twitter_100d.bin data/raw/all.jsonl language_model/fasttext_german_twitter_finetune_telegram/model.bin
+    deps:
+    - emb/train/train_split_1
+    - emb/valid.txt
+    - emb/test.txt
+    - profile_extraction/ner_model/train_embeddings.py
+    - data/raw/fasttext_german_twitter_100d.bin
+    outs:
+    - language_model/fasttext_german_twitter_finetune_telegram/model.bin
+
+  train_ner_model:
+    cmd: poetry run train_model tmp model
+    deps:
+    - tmp/train.jsonl
+    - tmp/dev.jsonl
+    - tmp/test.jsonl
+    - language_model/backward/best-lm.pt
+    - language_model/forward/best-lm.pt
+    - profile_extraction/ner_model/corpus.py
+    - profile_extraction/ner_model/train.py
+    outs:
+    - model/best-model.pt
+    - model/training.log
+    - model/loss.tsv
+
+  train_twitter_model:
+    cmd: poetry run train_fasttext_model tmp twitter_model data/raw/fasttext_german_twitter_100d.bin
+    deps:
+    - tmp/train.jsonl
+    - tmp/dev.jsonl
+    - tmp/test.jsonl
+    - profile_extraction/ner_model/corpus.py
+    - profile_extraction/ner_model/train_fasttext.py
+    - data/raw/fasttext_german_twitter_100d.bin
+    outs:
+    - twitter_model/best-model.pt
+    - twitter_model/training.log
+    - twitter_model/loss.tsv
+
+  train_finetuned_twitter_model:
+    cmd: poetry run train_fasttext_model tmp finetuned_twitter_model language_model/fasttext_german_twitter_finetune_telegram/model.bin
+    deps:
+    - tmp/train.jsonl
+    - tmp/dev.jsonl
+    - tmp/test.jsonl
+    - profile_extraction/ner_model/corpus.py
+    - profile_extraction/ner_model/train_fasttext.py
+    - language_model/fasttext_german_twitter_finetune_telegram/model.bin
+    outs:
+    - finetuned_twitter_model/best-model.pt
+    - finetuned_twitter_model/training.log
+    - finetuned_twitter_model/loss.tsv
+
+  train_transformer_model:
+    cmd: poetry run train_transformer tmp transformer_model
+    deps:
+    - tmp/train.jsonl
+    - tmp/dev.jsonl
+    - tmp/test.jsonl
+    - profile_extraction/ner_model/corpus.py
+    - profile_extraction/ner_model/train_transformer.py
+    outs:
+    - transformer_model/best-model.pt
+    - transformer_model/training.log
+    - transformer_model/loss.tsv
+
+  train_relation_model:
+    cmd: poetry run relation_model train tmp/ relation_model/ --ner-model-path transformer_model/best-model.pt --learning-rate 3.17e-5 --mini-batch-size 16 --patience 4 --max-epochs 400 --model deepset/gbert-large --word-dropout 0.1431 --locked-dropout 0.0713 --dropout 0.0253
+    deps:
+    - tmp/train.jsonl
+    - tmp/dev.jsonl
+    - tmp/test.jsonl
+    - profile_extraction/rel_model/train.py
+    - profile_extraction/ner_model/corpus.py
+    - transformer_model/best-model.pt
+    outs:
+    - relation_model/best-model.pt
+    - relation_model/training.log
+    - relation_model/loss.tsv
+
+  ner_model_metrics:
+    cmd: poetry run evaluate -m model/best-model.pt -d tmp/test.jsonl model/metrics.json
+    deps:
+    - model/best-model.pt
+    - tmp/test.jsonl
+    - profile_extraction/ner_model/evaluate.py
+    metrics:
+    - model/metrics.json
+
+  twitter_model_metrics:
+    cmd: poetry run evaluate -m twitter_model/best-model.pt -d tmp/test.jsonl twitter_model/metrics.json
+    deps:
+    - twitter_model/best-model.pt
+    - tmp/test.jsonl
+    - profile_extraction/ner_model/evaluate.py
+    metrics:
+    - twitter_model/metrics.json
+
+  finetuned_twitter_model_metrics:
+    cmd: poetry run evaluate -m finetuned_twitter_model/best-model.pt -d tmp/test.jsonl finetuned_twitter_model/metrics.json
+    deps:
+    - finetuned_twitter_model/best-model.pt
+    - tmp/test.jsonl
+    - profile_extraction/ner_model/evaluate.py
+    metrics:
+    - finetuned_twitter_model/metrics.json
+
+  transformer_model_metrics:
+    cmd: poetry run evaluate -m transformer_model/best-model.pt -d tmp/test.jsonl transformer_model/metrics.json
+    deps:
+    - transformer_model/best-model.pt
+    - tmp/test.jsonl
+    - profile_extraction/ner_model/evaluate.py
+    metrics:
+    - transformer_model/metrics.json
+
+  relation_model_metrics_full:
+    cmd: poetry run relation_model evaluate tmp/test.jsonl relation_model/best-model.pt relation_model/metrics_full.json --ner-model-path transformer_model/best-model.pt
+    deps:
+    - transformer_model/best-model.pt
+    - tmp/test.jsonl
+    - profile_extraction/rel_model/main.py
+    - relation_model/best-model.pt
+    metrics:
+    - relation_model/metrics_full.json
+
+  relation_model_metrics:
+    cmd: poetry run relation_model evaluate tmp/test.jsonl relation_model/best-model.pt relation_model/metrics.json
+    deps:
+    - tmp/test.jsonl
+    - profile_extraction/rel_model/main.py
+    - relation_model/best-model.pt
+    metrics:
+    - relation_model/metrics.json
+
+  create_profiles_schwarzmarkt_4:
+    cmd: create_profiles --model transformer_model/best-model.pt --relation-model relation_model/best-model.pt --chat data/raw/schwarzmarkt_4.json --output profiles/schwarzmarkt_4.json
+    outs:
+    - profiles/schwarzmarkt_4.json
+    deps:
+    - transformer_model/best-model.pt
+    - data/raw/schwarzmarkt_4.json
+    - profile_extraction/profile_creation
+    - relation_model/best-model.pt
+
+  create_profiles_schwarzmarkt_d:
+    cmd: poetry run create_profiles --model transformer_model/best-model.pt --relation-model relation_model/best-model.pt --chat data/raw/schwarzmarkt_d.json --output profiles/schwarzmarkt_d.json
+    outs:
+    - profiles/schwarzmarkt_d.json
+    deps:
+    - transformer_model/best-model.pt
+    - data/raw/schwarzmarkt_d.json
+    - profile_extraction/profile_creation
+    - relation_model/best-model.pt
+
+  create_profiles_schwarzmarkt_legacy:
+    cmd: poetry run create_profiles --model transformer_model/best-model.pt --relation-model relation_model/best-model.pt --chat data/raw/schwarzmarkt_legacy.json --output profiles/schwarzmarkt_legacy.json
+    outs:
+    - profiles/schwarzmarkt_legacy.json
+    deps:
+    - transformer_model/best-model.pt
+    - data/raw/schwarzmarkt_legacy.json
+    - profile_extraction/profile_creation
+    - relation_model/best-model.pt
+
+  create_profiles_safe_port:
+    cmd: poetry run create_profiles --model transformer_model/best-model.pt --relation-model relation_model/best-model.pt --chat data/raw/schwarzmarkt_safe_port.json --output profiles/schwarzmarkt_safe_port.json
+    outs:
+    - profiles/schwarzmarkt_safe_port.json
+    deps:
+    - transformer_model/best-model.pt
+    - data/raw/schwarzmarkt_safe_port.json
+    - profile_extraction/profile_creation
+    - relation_model/best-model.pt
+
+  visualize_profiles_schwarzmarkt_d:
+    cmd: poetry run visualize_profiles --input-json profiles/schwarzmarkt_d.json --output-dir visualized_profiles/schwarzmarkt_d/
+    outs:
+    - visualized_profiles/schwarzmarkt_d/
+    deps:
+    - profile_extraction/profile_visualization/
+    - profiles/schwarzmarkt_d.json
+
+  visualize_profiles_schwarzmarkt_4:
+    cmd: poetry run visualize_profiles --input-json profiles/schwarzmarkt_4.json --output-dir visualized_profiles/schwarzmarkt_4/
+    outs:
+    - visualized_profiles/schwarzmarkt_4/
+    deps:
+    - profile_extraction/profile_visualization/
+    - profiles/schwarzmarkt_4.json
+
+  visualize_profiles_schwarzmarkt_legacy:
+    cmd: poetry run visualize_profiles --input-json profiles/schwarzmarkt_legacy.json --output-dir visualized_profiles/schwarzmarkt_legacy/
+    outs:
+    - visualized_profiles/schwarzmarkt_legacy/
+    deps:
+    - profile_extraction/profile_visualization/
+    - profiles/schwarzmarkt_legacy.json
+
+  visualize_profiles_schwarzmarkt_safe_port:
+    cmd: poetry run visualize_profiles --input-json profiles/schwarzmarkt_safe_port.json --output-dir visualized_profiles/schwarzmarkt_safe_port/
+    outs:
+    - visualized_profiles/schwarzmarkt_safe_port/
+    deps:
+    - profile_extraction/profile_visualization/
+    - profiles/schwarzmarkt_safe_port.json
+
+  cluster:
+    foreach:
+    - chat: schwarzmarkt_4
+      model: transformer_model
+      threshold: 0.3
+      tf-idf: tf-idf
+      embeddings: model/best-model.pt
+      embeddings-type: MODEL
+      output: cluster/hybrid-embedded
+
+    - chat: schwarzmarkt_4
+      model: transformer_model
+      threshold: 0.3
+      tf-idf: no-tf-idf
+      embeddings: model/best-model.pt
+      embeddings-type: MODEL
+      output: cluster/hybrid-no-tf-embedded
+
+    - chat: schwarzmarkt_4
+      model: transformer_model
+      threshold: 0.3
+      tf-idf: no-tf-idf
+      embeddings: twitter_model/best-model.pt
+      embeddings-type: MODEL
+      output: cluster/twitter-model-hybrid-no-tf-embedded
+
+    - chat: schwarzmarkt_4
+      model: transformer_model
+      threshold: 0.3
+      tf-idf: no-tf-idf
+      embeddings: finetuned_twitter_model/best-model.pt
+      embeddings-type: MODEL
+      output: cluster/finetuned-twitter-model-hybrid-no-tf-embedded
+
+    - chat: schwarzmarkt_4
+      model: transformer_model
+      threshold: 0.3
+      tf-idf: no-tf-idf
+      embeddings: T-Systems-onsite/cross-en-de-roberta-sentence-transformer
+      embeddings-type: TRANSFORMER
+      output: cluster/sentence-roberta-hybrid-no-tf-embedded
+
+    - chat: schwarzmarkt_4
+      model: transformer_model
+      threshold: 0.2
+      tf-idf: no-tf-idf
+      embeddings-type: LOWERCASED_FASTTEXT
+      embeddings: language_model/fasttext_german_twitter_finetune_telegram/model.bin
+      output: cluster/fasttext-finetuned-twitter-model-hybrid-no-tf-embedded
+
+    do:
+      cmd: poetry run cluster_profiles --linkage average --model-path ${item.model}/best-model.pt --output-dir ${item.output} --profile-path profiles/${item.chat}.json --threshold ${item.threshold} --visualizations-path visualized_profiles/${item.chat} --${item.tf-idf} --embeddings "${item.embeddings}" --embeddings-type "${item.embeddings-type}"
+      deps:
+      - profile_extraction/profile_clustering
+      - visualized_profiles/${item.chat}/
+      - profiles/${item.chat}.json
+      - ${item.model}
+      outs:
+      - ${item.output}
+
+  cluster_tf_idf:
+    cmd: poetry run cluster_tfidf --profiles-path "profiles/schwarzmarkt_4.json" --visualizations-path "visualized_profiles/schwarzmarkt_4" --output-path "cluster/only-tf-idf" --threshold 0.3
+    deps:
+    - profile_extraction/profile_clustering
+    - visualized_profiles/schwarzmarkt_4/
+    - profiles/schwarzmarkt_4.json
+    outs:
+    - cluster/only-tf-idf
+
+
+  embedding_evaluation:
+    foreach:
+      classic_model_embeddings:
+        embeddings-type: MODEL
+        embeddings: model/best-model.pt
+      finetuned_twitter_model_embeddings:
+        embeddings-type: MODEL
+        embeddings: finetuned_twitter_model/best-model.pt
+      twitter_model_embeddings:
+        embeddings-type: MODEL
+        embeddings: twitter_model/best-model.pt
+      twitter_bert_embeddings:
+        embeddings-type: TRANSFORMER
+        embeddings: Twitter/twhin-bert-large
+      transformer_model_embeddings:
+        embeddings-type: MODEL
+        embeddings: transformer_model/best-model.pt
+      gbert_large_embeddings:
+        embeddings-type: TRANSFORMER
+        embeddings: deepset/gbert-large
+      sentence_roberta:
+        embeddings-type: TRANSFORMER
+        embeddings: T-Systems-onsite/cross-en-de-roberta-sentence-transformer
+      finetuned_twitter_embeddings:
+        embeddings-type: LOWERCASED_FASTTEXT
+        embeddings: language_model/fasttext_german_twitter_finetune_telegram/model.bin
+      twitter_embeddings:
+        embeddings-type: LOWERCASED_FASTTEXT
+        embeddings: data/raw/fasttext_german_twitter_100d.bin
+    do:
+      cmd: poetry run evaluate_embeddings --embeddings-type "${item.embeddings-type}" --plot-affinity "evaluation/${key}.pdf" --plot-differences "evaluation/${key}-differences.pdf" --embeddings "${item.embeddings}" data/evaluation "evaluation/${key}-affinity.csv" "evaluation/${key}-affinity-differences.csv"
+      deps:
+      - data/evaluation
+      - model/
+      - transformer_model/
+      - language_model/
+      - profile_extraction/evaluation/evaluate_embeddings.py
+      outs:
+      - evaluation/${key}-affinity.csv
+      - evaluation/${key}-affinity-differences.csv
+      - evaluation/${key}.pdf
+      - evaluation/${key}-differences.pdf
+
+  evaluate_nearest_neighbour:
+    cmd: poetry run evaluate_nn --dataset tmp/test.jsonl > nearest_neighbour_metrics.json
+    deps:
+    - tmp/test.jsonl
+    - profile_extraction/evaluation/evaluate_nn_algorithm.py
+    metrics:
+    - nearest_neighbour_metrics.json
+
+  data_analysis:
+    cmd: poetry run metadata_analysis create-offerings-file metadata_analysis_results/streaming_product_offerings.json profiles/schwarzmarkt_4.json profiles/schwarzmarkt_d.json profiles/schwarzmarkt_legacy.json profiles/schwarzmarkt_safe_port.json
+    deps:
+    - profiles/schwarzmarkt_4.json
+    - profiles/schwarzmarkt_d.json
+    - profiles/schwarzmarkt_legacy.json
+    - profiles/schwarzmarkt_safe_port.json
+    - profile_extraction/metadata_analysis/create_relation_based_product_offerings.py
+    outs:
+    - metadata_analysis_results/streaming_product_offerings.json
+
+  offerings_boxplot:
+    cmd: poetry run metadata_analysis create-boxplot-offers metadata_analysis_results/streaming_product_offerings.json "pictures and graphics/offerings_boxplot.pdf"
+    deps:
+    - metadata_analysis_results/streaming_product_offerings.json
+    - profile_extraction/metadata_analysis/box_plot_streamining_offers.py
+    outs:
+    - pictures and graphics/offerings_boxplot.pdf
+
+  subscription_hist:
+    cmd: poetry run metadata_analysis create-subscriptions-hist metadata_analysis_results/streaming_product_offerings.json "pictures and graphics/subscriptions_histogram.pdf"
+    deps:
+    - metadata_analysis_results/streaming_product_offerings.json
+    - profile_extraction/metadata_analysis/hist_constr_type.py
+    outs:
+    - pictures and graphics/subscriptions_histogram.pdf
+
+  price_per_month_scatter:
+    cmd: poetry run metadata_analysis create-cost-scatterplot metadata_analysis_results/streaming_product_offerings.json "pictures and graphics/price_scatterplot.pdf"
+    deps:
+    - metadata_analysis_results/streaming_product_offerings.json
+    - profile_extraction/metadata_analysis/price_per_month_and_length_of_crit.py
+    outs:
+    - pictures and graphics/price_scatterplot.pdf
